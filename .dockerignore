@@ -1,0 +1,17 @@
+# Files to ignore
+# Tell docker to ignore .gitkeep
+.gitkeep
+# Tell docker to ignore .gitignore
+.gitignore
+# Tell docker to ignore node_modules/**
+node_modules/**
+# Tell docker to ignore .node_modules/**
+.node_modules/**
+# Tell docker to ignore **/.gitkeep
+**/.gitkeep
+# Tell docker to ignore **/.gitignore
+**/.gitignore
+# Tell docker to ignore **/node_modules/**
+**/node_modules/**
+# Tell docker to ignore **/.node_modules/**
+**/.node_modules/**

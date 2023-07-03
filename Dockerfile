@@ -62,7 +62,7 @@ RUN set -ex ; \
   echo ""
 
 COPY --from=gosu /usr/local/bin/gosu /usr/local/bin/gosu
-COPY --from=src /app/rarbg-selfhosted /usr/local/bin/rarbg
+COPY --from=src /rarbg-selfhosted /usr/local/bin/rarbg
 
 COPY ./rootfs/. /
 COPY ./Dockerfile /root/Dockerfile

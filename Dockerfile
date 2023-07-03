@@ -24,7 +24,7 @@ ARG DISTRO_VERSION="${IMAGE_VERSION}"
 ARG BUILD_VERSION="${DISTRO_VERSION}"
 
 FROM tianon/gosu:latest AS gosu
-FROM ghcr.io/mgdigital/rarbg-selfhosted:latest AS src
+FROM ghcr.io/casjaysdevdocker/rarbg:latest AS src
 FROM ${IMAGE_REPO}:${DISTRO_VERSION} AS build
 ARG USER
 ARG LICENSE

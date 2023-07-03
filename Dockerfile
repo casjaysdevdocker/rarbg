@@ -170,7 +170,7 @@ ENV PHP_VERSION="${PHP_VERSION}"
 ENV CONTAINER_NAME="${IMAGE_NAME}"
 ENV HOSTNAME="casjaysdev-${IMAGE_NAME}"
 ENV USER="${USER}"
-ENV PATH_SQLITE_DB="/data/db/database.sqlite"
+ENV PATH_SQLITE_DB="/data/db/rarbg/database.sqlite"
 ENV PATH_TRACKERS="/config/rarbg/trackers.txt"
 
 COPY --from=build /. /

@@ -91,6 +91,8 @@ IS_WEB_SERVER="yes"
 IS_DATABASE_SERVICE="yes"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Additional variables
+export PATH_SQLITE_DB="/data/db/rarbg/database.sqlite"
+export PATH_TRACKERS="/config/rarbg/trackers.txt"
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # usernames

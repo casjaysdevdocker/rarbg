@@ -292,7 +292,7 @@ __run_start_script() {
       echo "$message"
       su_cmd touch "$SERVICE_PID_FILE"
       __post_execute 2>"/dev/stderr" 2>&1 |& tee -a "$LOG_DIR/init.txt" &>/dev/null &
-      su_cmd env -i PATH_SQLITE_DB="$PATH_SQLITE_DB" PATH_SQLITE_DB="$PATH_SQLITE_DB" HOME="$home" LC_CTYPE="$lc_type" PATH="$path" USER="$user" sh -c "$cmd_exec" || return 10
+      su_cmd env -i PATH_SQLITE_DB="$PATH_SQLITE_DB" PATH_TRACKERS="$PATH_TRACKERS" HOME="$home" LC_CTYPE="$lc_type" PATH="$path" USER="$user" sh -c "$cmd_exec" || return 10
     fi
   fi
 }

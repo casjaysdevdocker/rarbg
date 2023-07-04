@@ -6,7 +6,12 @@ rarbg README
 ## Run container
 
 ```shell
-docker run --name -casjaysdevdocker-rarbg casjaysdevdocker/rarbg bash
+docker run -d \
+--name casjaysdevdocker-rarbg \
+-v "$HOME/.local/share/srv/docker/rarbg/rootfs/config":/config \
+-v "$HOME/.local/share/srv/docker/rarbg/rootfs/data":/data \
+-p 3333:3333 \
+casjaysdevdocker/rarbg
 ```
   
   

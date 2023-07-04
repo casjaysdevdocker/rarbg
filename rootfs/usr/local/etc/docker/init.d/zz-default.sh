@@ -171,13 +171,9 @@ __pre_execute() {
   local rargb_db="/usr/local/share/template-files/data/db/rarbg/database.sqlite"
   # define commands
   [ -d "$rargb_dir" ] || mkdir -p "$rargb_dir"
+  [ -d "/config/rarbg" ] || mkdir -p "/config/rarbg"
   [ -f "$rargb_dir/database.sqlite" ] || cp -Rf "$rargb_db" "$rargb_dir/database.sqlite"
   [ -f "/config/rarbg/trackers.txt" ] || cp -Rf "/usr/local/share/template-files/config/rarbg/trackers.txt" "/config/rarbg/trackers.txt"
- # execute if directories is empty
-  #__is_dir_empty "" &&
-
-  # create user if needed
-  # __create_service_user "$user" "/home/$user" "${USER_GID:-${USER_UID:-1000}"
   # set user on files/folders
   if [ -n "$user" ] && [ "$user" != "root" ]; then
     if grep -s -q "$user:" "/etc/passwd"; then

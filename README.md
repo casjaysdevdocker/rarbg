@@ -1,7 +1,8 @@
 ## 👋 Welcome to rarbg 🚀  
 
-rarbg README  
+A self-hosted Torznab API for the RARBG backup, compatible with Prowlarr, Radarr, Sonarr etc.
   
+From: <https://github.com/mgdigital/rarbg-selfhosted>
   
 ## Run container
 

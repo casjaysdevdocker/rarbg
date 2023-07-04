@@ -172,7 +172,8 @@ __pre_execute() {
   # define commands
   [ -d "$rargb_dir" ] || mkdir -p "$rargb_dir"
   [ -f "$rargb_dir/database.sqlite" ] || cp -Rf "$rargb_db" "$rargb_dir/database.sqlite"
-  # execute if directories is empty
+  [ -f "/config/rarbg/trackers.txt" ] || cp -Rf "/usr/local/share/template-files/config/rarbg/trackers.txt" "/config/rarbg/trackers.txt"
+ # execute if directories is empty
   #__is_dir_empty "" &&
 
   # create user if needed

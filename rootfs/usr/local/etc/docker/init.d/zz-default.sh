@@ -167,8 +167,11 @@ __update_conf_files() {
 __pre_execute() {
   local exitCode=0                   # default exit code
   local user="${SERVICE_USER:-root}" # specifiy different user
+  local rargb_dir="/data/db/rarbg"
+  local rargb_db="/usr/local/share/template-files/data/db/rarbg/database.sqlite"
   # define commands
-
+  [ -d "$rargb_dir" ] || mkdir -p "$rargb_dir"
+  [ -f "$rargb_dir/database.sqlite" ] || cp -Rf "$rargb_db" "$rargb_dir/database.sqlite"
   # execute if directories is empty
   #__is_dir_empty "" &&
 

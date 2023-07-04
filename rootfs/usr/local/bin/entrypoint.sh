@@ -79,7 +79,7 @@ PGSQL_CONFIG_FILE="${PGSQL_CONFIG_FILE:-$(__find_pgsql_conf)}"
 MONGODB_CONFIG_FILE="${MONGODB_CONFIG_FILE:-$(__find_mongodb_conf)}"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Overwrite variables
-
+export PATH_SQLITE_DB="${PATH_SQLITE_DB:-/data/db/rarbg/database.sqlite}"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Last thing to run before options
 __run_pre() {

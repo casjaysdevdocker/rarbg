@@ -402,7 +402,7 @@ fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # set switch user command
 if [ "$SERVICE_USER" = "root" ] || [ -z "$SERVICE_USER" ]; then
-  su_cmd() { eval "$*" || return 1; }
+  su_cmd() { eval "$@" || return 1; }
 elif [ "$(builtin type -P gosu)" ]; then
   su_cmd() { gosu $SERVICE_USER "$@" || return 1; }
 elif [ "$(builtin type -P runuser)" ]; then
@@ -413,7 +413,7 @@ elif [ "$(builtin type -P su)" ]; then
   su_cmd() { su -s /bin/sh - $SERVICE_USER -c "$@" || return 1; }
 else
   echo "Can not switch to $SERVICE_USER: attempting to run as root"
-  su_cmd() { eval "$*" || return 1; }
+  su_cmd() { eval "$@" || return 1; }
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Change to working directory

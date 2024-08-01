@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202407271336-git
+##@Version           :  202408011327-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  jason@casjaysdev.pro
 # @@License          :  WTFPL
 # @@ReadME           :  entrypoint.sh --help
 # @@Copyright        :  Copyright: (c) 2024 Jason Hempstead, Casjays Developments
-# @@Created          :  Saturday, Jul 27, 2024 13:36 EDT
+# @@Created          :  Thursday, Aug 01, 2024 13:27 EDT
 # @@File             :  entrypoint.sh
 # @@Description      :  Entrypoint file for rarbg
 # @@Changelog        :  New script
@@ -35,6 +35,7 @@ PATH="/usr/local/etc/docker/bin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin"
 SCRIPT_FILE="$0"
 CONTAINER_NAME="rarbg"
 SCRIPT_NAME="$(basename "$SCRIPT_FILE" 2>/dev/null)"
+CONTAINER_NAME="${ENV_CONTAINER_NAME:-$CONTAINER_NAME}"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # remove whitespaces from beginning argument
 while :; do [ "$1" = " " ] && shift 1 || break; done
@@ -49,6 +50,17 @@ else
   echo "Can not load functions from /usr/local/etc/docker/functions/entrypoint.sh"
   exit 1
 fi
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+case "$1" in
+# Help message
+--help)
+  shift 1
+  echo 'Docker container for '$CONTAINER_NAME''
+  echo "Usage: $CONTAINER_NAME [cron exec start init shell certbot ssl procs ports healthcheck backup command]"
+  echo ""
+  exit 0
+  ;;
+esac
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Create the default env files
 __create_env_file "/config/env/default.sh" "/root/env.sh" &>/dev/null
@@ -183,8 +195,10 @@ mkdir -p "/data/logs"
 mkdir -p "/run/init.d"
 mkdir -p "/config/enable"
 mkdir -p "/config/secure"
+mkdir -p "/usr/local/etc/docker/exec"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # create required files
+touch "/data/logs/start.log"
 touch "/data/logs/entrypoint.log"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # fix permissions
@@ -196,12 +210,12 @@ chmod -f 777 "/var/tmp"
 chmod -f 777 "/run/cron"
 chmod -f 777 "/data/logs"
 chmod -f 777 "/run/init.d"
-chmod -f 666 "/dev/stderr"
-chmod -f 666 "/dev/stdout"
 chmod -f 777 "/config/enable"
 chmod -f 777 "/config/secure"
 chmod -f 777 "/data/logs/entrypoint.log"
+chmod -f 777 "/usr/local/etc/docker/exec"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# lets ensure everyone can write to std*
 [ -f "/dev/stdin" ] && chmod -f 777 "/dev/stdin"
 [ -f "/dev/stderr" ] && chmod -f 777 "/dev/stderr"
 [ -f "/dev/stdout" ] && chmod -f 777 "/dev/stdout"
@@ -352,19 +366,11 @@ if [ "$START_SERVICES" = "yes" ] && [ "$1" != "backup" ] && [ "$1" != "healthche
   echo "$$" >"/run/init.d/entrypoint.pid"
   __start_init_scripts "/usr/local/etc/docker/init.d"
   START_SERVICES="no"
-  CONTAINER_INIT="no"
+  CONTAINER_INIT="${CONTAINER_INIT:-no}"
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Begin options
 case "$1" in
-# Help message
---help)
-  echo 'Docker container for '$APPNAME''
-  echo "Usage: $APPNAME [cron exec start init shell certbot ssl procs ports healthcheck backup command]"
-  echo ""
-  exit 0
-  ;;
-
 init)
   shift 1
   echo "Container has been Initialized"
@@ -501,7 +507,7 @@ start)
   if [ $# -eq 0 ]; then
     if [ ! -f "/run/init.d/entrypoint.pid" ]; then
       echo "$$" >"/run/init.d/entrypoint.pid"
-      __start_init_scripts "/usr/local/etc/docker/init.d"
+      [ "$START_SERVICES" = "no" ] && [ "$CONTAINER_INIT" = "yes" ] || __start_init_scripts "/usr/local/etc/docker/init.d"
     fi
     __no_exit
   else

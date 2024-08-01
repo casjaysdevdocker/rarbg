@@ -532,7 +532,7 @@ __create_service_user() {
   fi
   grep -qs "$create_group" "/etc/group" || exitStatus=$((exitCode + 1))
   grep -qs "$create_user" "/etc/passwd" || exitStatus=$((exitCode + 1))
-  [ $exitStatus -eq 0 ] && export WORK_DIR="${set_home_dir:-}"
+  [ $exitStatus -eq 0 ] && export WORK_DIR="${create_home_dir:-}"
   if [ -n "$WORK_DIR" ]; then
     [ -d "$WORK_DIR" ] || mkdir -p "$WORK_DIR"
     [ -d "/etc/.skel" ] && cp -Rf /etc/.skel/. "$WORK_DIR/"

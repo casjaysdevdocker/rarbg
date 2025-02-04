@@ -4,7 +4,7 @@ on: push
 
 jobs:
   release-image:
-    runs-on: ubuntu-latest
+    runs-on: act_runner
     container:
       image: catthehacker/ubuntu:act-latest
     env:
@@ -19,6 +19,7 @@ jobs:
       - name: Get Meta
         id: meta
         run: |
+          echo DATE_TAG=$(date +'%y%m') >> $GITHUB_OUTPUT
           echo REPO_VERSION=$(git describe --tags --always | sed 's/^v//') >> $GITHUB_OUTPUT
           echo DOCKER_ORG=$(echo ${GITHUB_REPOSITORY} | awk -F"/" '{print $1}') >> $GITHUB_OUTPUT
           echo DOCKER_TAG=$([ -n "$DOCKER_TAG" ] && echo ${DOCKER_TAG} || echo "latest") >> $GITHUB_OUTPUT
@@ -46,4 +47,6 @@ jobs:
             linux/arm64
           push: true
           tags: | # replace it with your local IP and tags
+            ${{ steps.meta.outputs.DOCKER_HUB }}/${{ steps.meta.outputs.DOCKER_ORG }}/${{ steps.meta.outputs.REPO_NAME }}:${{ steps.meta.outputs.DATE_TAG }}
             ${{ steps.meta.outputs.DOCKER_HUB }}/${{ steps.meta.outputs.DOCKER_ORG }}/${{ steps.meta.outputs.REPO_NAME }}:${{ steps.meta.outputs.DOCKER_TAG }}
+

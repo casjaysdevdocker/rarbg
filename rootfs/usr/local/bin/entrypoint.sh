@@ -89,7 +89,7 @@ DATABASE_DIR="" # set database dir
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Healthcheck variables
 HEALTH_ENABLED="yes" # enable healthcheck [yes/no]
-SERVICES_LIST="tini" # comma seperated list of processes for the healthcheck
+SERVICES_LIST="tini,zz-default"
 HEALTH_ENDPOINTS=""  # url endpoints: [http://localhost/health,http://localhost/test]
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Update path var
@@ -336,8 +336,14 @@ if [ "$ENTRYPOINT_FIRST_RUN" != "no" ]; then
   __setup_mta
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# if no pid assume container restart
-[ -f "$ENTRYPOINT_PID_FILE" ] && [ -f "/run/__start_init_scripts.pid" ] || START_SERVICES="yes"
+# if no pid assume container restart - clean stale files on restart
+if [ ! -f "$ENTRYPOINT_PID_FILE" ]; then 
+  START_SERVICES="yes"
+  # Clean stale pid files from previous container runs
+  rm -f /run/__start_init_scripts.pid /run/init.d/*.pid /run/*.pid
+elif [ ! -f "/run/__start_init_scripts.pid" ]; then
+  START_SERVICES="yes" 
+fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 [ "$ENTRYPOINT_MESSAGE" = "yes" ] && __printf_space "40" "Container ip address is:" "$CONTAINER_IP4_ADDRESS"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

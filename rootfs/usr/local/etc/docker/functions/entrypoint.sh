@@ -18,13 +18,13 @@
 # @@sudo/root        :  no
 # @@Template         :  functions/docker-entrypoint
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# shellcheck disable=SC1003,SC2016,SC2031,SC2120,SC2155,SC2199,SC2317
+# shellcheck disable=SC1001,SC1003,SC2001,SC2003,SC2016,SC2031,SC2120,SC2155,SC2199,SC2317,SC2329
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # setup debugging - https://www.gnu.org/software/bash/manual/html_node/The-Set-Builtin.html
 [ -f "/config/.debug" ] && [ -z "$DEBUGGER_OPTIONS" ] && export DEBUGGER_OPTIONS="$(<"/config/.debug")" || DEBUGGER_OPTIONS="${DEBUGGER_OPTIONS:-}"
-{ [ "$DEBUGGER" = "on" ] || [ -f "/config/.debug" ]; } && echo "Enabling debugging" && set -xo pipefail -x$DEBUGGER_OPTIONS && export -o pipefail
+{ [ "$DEBUGGER" = "on" ] || [ -f "/config/.debug" ]; } && echo "Enabling debugging" && set -xo pipefail -x$DEBUGGER_OPTIONS && export DEBUGGER="on" || set -o pipefail
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-__remove_extra_spaces() { sed 's/\( \)*/␁/g;s|^ ||g'; }
+__remove_extra_spaces() { sed 's/\( \)*/\1/g;s|^ ||g'; }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __printf_space() {
   local pad=$(printf '%0.1s' " "{1..60})
@@ -39,161 +39,97 @@ __printf_space() {
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __rm() { [ -n "$1" ] && [ -e "$1" ] && rm -Rf "${1:?}"; }
-__grep_test() { grep -ash "$1" "$2" | grep -aqwF "${3:-$1}" || return 1; }
+__grep_test() { grep -sh "$1" "$2" | grep -qwF "${3:-$1}" || return 1; }
 __netstat() { [ -f "$(type -P netstat)" ] && netstat "$@" || return 10; }
 __cd() { { [ -d "$1" ] || mkdir -p "$1"; } && builtin cd "$1" || return 1; }
-__is_in_file() { [ -e "$2" ] && grep -Rsaq "$1" "$2" && return 0 || return 1; }
+__is_in_file() { [ -e "$2" ] && grep -Rsq "$1" "$2" && return 0 || return 1; }
 __curl() { curl -q -sfI --max-time 3 -k -o /dev/null "$@" &>/dev/null || return 10; }
-__find() { find "$1" -mindepth 1 -type ${2:-f,d} 2>/dev/null | grep -a '^' || return 10; }
+__find() { find "$1" -mindepth 1 -type ${2:-f,d} 2>/dev/null | grep '.' || return 10; }
 __pcheck() { [ -n "$(which pgrep 2>/dev/null)" ] && pgrep -o "$1$" &>/dev/null || return 10; }
 __file_exists_with_content() { [ -n "$1" ] && [ -f "$1" ] && [ -s "$1" ] && return 0 || return 2; }
 __sed() { sed -i 's|'$1'|'$2'|g' "$3" &>/dev/null || sed -i "s|$1|$2|g" "$3" &>/dev/null || return 1; }
-__pgrep() { __pcheck "${1:-SERVICE_NAME}" || __ps "${1:-$SERVICE_NAME}" | grep -aqv ' grep' || return 10; }
-__ps() { [ -f "$(type -P ps)" ] && ps "$@" 2>/dev/null | sed 's|:||g' | grep -aFw " ${1:-$SERVICE_NAME}$" || return 10; }
+__pgrep() { __pcheck "${1:-SERVICE_NAME}" || __ps "${1:-$SERVICE_NAME}" | grep -qv ' grep' || return 10; }
+__ps() { [ -f "$(type -P ps)" ] && ps "$@" 2>/dev/null | sed 's|:||g' | grep -Fw " ${1:-$SERVICE_NAME}$" || return 10; }
 __is_dir_empty() { if [ -n "$1" ]; then [ "$(ls -A "$1" 2>/dev/null | wc -l)" -eq 0 ] && return 0 || return 1; else return 1; fi; }
-__get_ip6() { ip a 2>/dev/null | grep -aw 'inet6' | awk '{print $2}' | grep -avE '^::1|^fe' | sed 's|/.*||g' | head -n1 | grep -a '^' || echo ''; }
-__get_ip4() { ip a 2>/dev/null | grep -aw 'inet' | awk '{print $2}' | grep -avE '^127.0.0' | sed 's|/.*||g' | head -n1 | grep -a '^' || echo '127.0.0.1'; }
-__find_file_relative() { find "$1"/* -not -path '*env/*' -not -path '.git*' -type f 2>/dev/null | sed 's|'$1'/||g' | sort -u | grep -av '^$' | grep -a '^' || false; }
-__find_directory_relative() { find "$1"/* -not -path '*env/*' -not -path '.git*' -type d 2>/dev/null | sed 's|'$1'/||g' | sort -u | grep -av '^$' | grep -a '^' || false; }
+__get_ip6() { ip a 2>/dev/null | grep -w 'inet6' | awk '{print $2}' | grep -vE '^::1|^fe' | sed 's|/.*||g' | head -n1 | grep '.' || echo ''; }
+__get_ip4() { ip a 2>/dev/null | grep -w 'inet' | awk '{print $2}' | grep -vE '^127.0.0' | sed 's|/.*||g' | head -n1 | grep '.' || echo '127.0.0.1'; }
+__find_file_relative() { find "$1"/* -not -path '*env/*' -not -path '.git*' -type f 2>/dev/null | sed 's|'$1'/||g' | sort -u | grep -v '^$' | grep '.' || false; }
+__find_directory_relative() { find "$1"/* -not -path '*env/*' -not -path '.git*' -type d 2>/dev/null | sed 's|'$1'/||g' | sort -u | grep -v '^$' | grep '.' || false; }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-__pid_exists() { ps -ax --no-header | sed 's/^[[:space:]]*//g' | awk -F' ' '{print $1}' | sed 's|:||g' | grep -a '[0-9]' | sort -uV | grep -a "^$1$" && return 0 || return 1; }
-__is_running() { ps -eo args --no-header | awk '{print $1,$2,$3}' | sed 's|:||g' | sort -u | grep -avE 'grep|COMMAND|awk|tee|ps|sed|sort|tail' | grep "$1" | grep -aq "${2:-^}" && return 0 || return 1; }
-__get_pid() { ps -ax --no-header | sed 's/^[[:space:]]*//g;s|;||g;s|:||g' | awk '{print $1,$5}' | sed 's|:||g' | grep "$1$" | grep -av 'grep' | awk -F' ' '{print $1}' | grep -a '[0-9]' | sort -uV | head -n1 | grep -a '^' && return 0 || return 1; }
+__pid_exists() { ps -ax --no-header | sed 's/^[[:space:]]*//g' | awk -F' ' '{print $1}' | sed 's|:||g' | grep '[0-9]' | sort -uV | grep "^$1$" && return 0 || return 1; }
+__is_running() { ps -eo args --no-header | awk '{print $1,$2,$3}' | sed 's|:||g' | sort -u | grep -vE 'grep|COMMAND|awk|tee|ps|sed|sort|tail' | grep "$1" | grep -q "${2:-^}" && return 0 || return 1; }
+__get_pid() { ps -ax --no-header | sed 's/^[[:space:]]*//g;s|;||g;s|:||g' | awk '{print $1,$5}' | sed 's|:||g' | grep "$1$" | grep -v 'grep' | awk -F' ' '{print $1}' | grep '[0-9]' | sort -uV | head -n1 | grep '.' && return 0 || return 1; }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-__format_variables() { printf '%s\n' "${@//,/ }" | tr ' ' '\n' | sort -RVu | grep -av '^$' | tr '\n' ' ' | __clean_variables | grep -a '^' || return 3; }
+__format_variables() { printf '%s\n' "${@//,/ }" | tr ' ' '\n' | sort -RVu | grep -v '^$' | tr '\n' ' ' | __clean_variables | grep '.' || return 3; }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __clean_variables() {
   local var="$*"
   var="${var#"${var%%[![:space:]]*}"}" # remove leading whitespace characters
   var="${var%"${var##*[![:space:]]}"}" # remove trailing whitespace characters
-  var="$(printf '%s\n' "$var" | sed 's/\( \)*/␁/g;s|^ ||g')"
-  printf '%s' "$var" | grep -av '^$'
+  var="$(printf '%s\n' "$var" | sed 's/\( \)*/\1/g;s|^ ||g')"
+  printf '%s' "$var" | grep -v '^$'
 }
-
-# Auto-detect services from init.d scripts
-__auto_detect_services() {
-  local discovered_services="tini"  # Always include tini as init
-  local init_dir="/usr/local/etc/docker/init.d"
-  
-  if [ -d "$init_dir" ]; then
-    for script in "$init_dir"/*.sh; do
-      if [ -f "$script" ]; then
-        # Extract service name from filename (remove number prefix and .sh suffix)
-        local service=$(basename "$script" | sed 's/^[0-9]*-//;s|\.sh$||g')
-        discovered_services="$discovered_services,$service"
-      fi
-    done
-  fi
-  
-  echo "$discovered_services"
-}
-
-# Enhanced __no_exit function with service monitoring and proper failure handling
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __no_exit() {
-  local monitor_services="${SERVICES_LIST:-$(__auto_detect_services)}"
-  local check_interval="${SERVICE_CHECK_INTERVAL:-30}"
-  local max_failures="${MAX_SERVICE_FAILURES:-3}"
-  declare -A failure_counts
-  
-  # Initialize failure counters
-  IFS=',' read -ra services <<< "$monitor_services"
-  for service in "${services[@]}"; do
-    service="${service// /}" # trim whitespace
-    [ -n "$service" ] && failure_counts["$service"]=0
-  done
-  
-  echo "🔍 Starting service supervisor - monitoring: $monitor_services"
-  echo "⏰ Check interval: ${check_interval}s, Max failures: $max_failures per service"
-  
-  # Set up trap to handle termination gracefully
-  trap 'echo "🛑 Container terminating - cleaning up services"; kill $(jobs -p) 2>/dev/null; rm -f /run/*.pid /run/init.d/*.pid; exit 0' TERM INT EXIT
-  
-  # Main supervision loop
-  while true; do
-    local failed_services=""
-    local running_services=""
-    local critical_failure=false
-    
-    # Check each monitored service
-    IFS=',' read -ra services <<< "$monitor_services"
-    for service in "${services[@]}"; do
-      service="${service// /}" # trim whitespace
-      [ -z "$service" ] && continue
-      
-      if __pgrep "$service" >/dev/null 2>&1; then
-        running_services="$running_services $service"
-        failure_counts["$service"]=0  # reset failure count on success
-      else
-        failed_services="$failed_services $service"
-        failure_counts["$service"]=$((${failure_counts["$service"]:-0} + 1))
-        
-        echo "⚠️  Service '$service' not running (failure ${failure_counts["$service"]}/$max_failures)"
-        
-        # Check if we've exceeded max failures for this service
-        if [ ${failure_counts["$service"]} -ge $max_failures ]; then
-          echo "💥 Service '$service' failed $max_failures times - this is critical!"
-          critical_failure=true
+  local monitor_interval="${SERVICE_MONITOR_INTERVAL:-60}"
+  local failure_threshold="${SERVICE_FAILURE_THRESHOLD:-3}"
+  local monitor_services="${SERVICES_LIST:-tini}"
+  local failed_services=""
+  local failure_count=0
+
+  [ -f "/run/no_exit.pid" ] && return 0
+
+  exec bash -c "
+    trap 'echo \"Container shutdown requested\"; rm -f /run/no_exit.pid /run/*.pid; exit 0' TERM INT
+    echo \$\$ > /run/no_exit.pid
+
+    while true; do
+      if [ -n \"$monitor_services\" ] && [ \"$monitor_services\" != \"tini\" ]; then
+        for service in \$(echo \"$monitor_services\" | tr ',' ' '); do
+          if [ \"\$service\" != \"tini\" ] && ! pgrep -x \"\$service\" >/dev/null 2>&1; then
+            echo \"⚠️ Service \$service is not running\" >&2
+            failed_services=\"\$failed_services \$service\"
+            failure_count=\$((failure_count + 1))
+          fi
+        done
+
+        if [ \$failure_count -ge $failure_threshold ]; then
+          echo \"❌ Too many service failures (\$failure_count), exiting container\" >&2
+          exit 1
+        fi
+
+        if [ -n \"\$failed_services\" ]; then
+          echo \"⚠️ Failed services:\$failed_services\" >&2
+          failed_services=\"\"
         fi
       fi
-    done
-    
-    # If we have critical failures, terminate the container
-    if [ "$critical_failure" = true ]; then
-      echo "🚨 Critical service failure detected:"
-      echo "   💀 Dead services: $failed_services"  
-      echo "   ✅ Running services: $running_services"
-      echo "   🔄 Container will terminate to allow restart by orchestrator"
-      
-      # Write final status to log
-      {
-        echo "$(date): CRITICAL FAILURE - Container terminating"
-        echo "Dead services: $failed_services"
-        echo "Running services: $running_services"
-      } >> "/data/logs/start.log"
-      
-      # Terminate the container (PID 1 is the init process)
-      kill -TERM 1
-      exit 1
-    fi
-    
-    # Log status periodically (every 10 cycles = ~5 minutes with 30s interval)
-    if [ $(($(date +%s) % 300)) -lt $check_interval ]; then
-      echo "📊 Service status - Running:$running_services Failed:$failed_services"
-      # Write to start.log for backward compatibility
-      echo "$(date): Services running:$running_services failed:$failed_services" >> "/data/logs/start.log"
-    fi
-    
-    sleep "$check_interval"
-  done &
-  
-  # Keep the original behavior for log tailing (for compatibility)
-  [ -f "/data/logs/start.log" ] && tail -f "/data/logs/start.log" >/dev/null 2>&1 &
-  
-  # Wait for background processes
-  wait
-}
 
+      sleep $monitor_interval
+    done &
+    wait
+  "
+}
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __trim() {
   local var="${*//;/ }"
   var="${var#"${var%%[![:space:]]*}"}" # remove leading whitespace characters
   var="${var%"${var##*[![:space:]]}"}" # remove trailing whitespace characters
   var="$(echo "$var" | __remove_extra_spaces | sed "s| |; |g;s|;$| |g" | __remove_extra_spaces)"
-  printf '%s' "$var" | sed 's|;||g' | grep -av '^$'
+  printf '%s' "$var" | sed 's|;||g' | grep -v '^$'
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __banner() { printf '# - - - %-60s  - - - #\n' "$*"; }
-__find_php_bin() { find -L '/usr'/*bin -maxdepth 4 -name 'php-fpm*' 2>/dev/null | head -n1 | grep -a '^' || echo ''; }
-__find_php_ini() { find -L '/etc' -maxdepth 4 -name 'php.ini' 2>/dev/null | head -n1 | sed 's|/php.ini||g' | grep -a '^' || echo ''; }
+__find_php_bin() { find -L '/usr'/*bin -maxdepth 4 -name 'php-fpm*' 2>/dev/null | head -n1 | grep '.' || echo ''; }
+__find_php_ini() { find -L '/etc' -maxdepth 4 -name 'php.ini' 2>/dev/null | head -n1 | sed 's|/php.ini||g' | grep '.' || echo ''; }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-__find_nginx_conf() { find -L '/etc' -maxdepth 4 -name 'nginx.conf' 2>/dev/null | head -n1 | grep -a '^' || echo ''; }
-__find_caddy_conf() { find -L '/etc' -maxdepth 4 -type f -iname 'caddy.conf' 2>/dev/null | head -n1 | grep -a '^' || echo ''; }
-__find_lighttpd_conf() { find -L '/etc' -maxdepth 4 -type f -iname 'lighttpd.conf' 2>/dev/null | head -n1 | grep -a '^' || echo ''; }
-__find_cherokee_conf() { find -L '/etc' -maxdepth 4 -type f -iname 'cherokee.conf' 2>/dev/null | head -n1 | grep -a '^' || echo ''; }
-__find_httpd_conf() { find -L '/etc' -maxdepth 4 -type f -iname 'httpd.conf' -o -iname 'apache2.conf' 2>/dev/null | head -n1 | grep -a '^' || echo ''; }
+__find_nginx_conf() { find -L '/etc' -maxdepth 4 -name 'nginx.conf' 2>/dev/null | head -n1 | grep '.' || echo ''; }
+__find_caddy_conf() { find -L '/etc' -maxdepth 4 -type f -iname 'caddy.conf' 2>/dev/null | head -n1 | grep '.' || echo ''; }
+__find_lighttpd_conf() { find -L '/etc' -maxdepth 4 -type f -iname 'lighttpd.conf' 2>/dev/null | head -n1 | grep '.' || echo ''; }
+__find_cherokee_conf() { find -L '/etc' -maxdepth 4 -type f -iname 'cherokee.conf' 2>/dev/null | head -n1 | grep '.' || echo ''; }
+__find_httpd_conf() { find -L '/etc' -maxdepth 4 -type f -iname 'httpd.conf' -o -iname 'apache2.conf' 2>/dev/null | head -n1 | grep '.' || echo ''; }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-__find_mysql_conf() { find -L '/etc' -maxdepth 4 -type f -name 'my.cnf' 2>/dev/null | head -n1 | grep -a '^' || echo ''; }
-__find_pgsql_conf() { find -L '/var/lib' '/etc' -maxdepth 8 -type f -name 'postgresql.conf' 2>/dev/null | head -n1 | grep -a '^' || echo ''; }
+__find_mysql_conf() { find -L '/etc' -maxdepth 4 -type f -name 'my.cnf' 2>/dev/null | head -n1 | grep '.' || echo ''; }
+__find_pgsql_conf() { find -L '/var/lib' '/etc' -maxdepth 8 -type f -name 'postgresql.conf' 2>/dev/null | head -n1 | grep '.' || echo ''; }
 __find_couchdb_conf() { return; }
 __find_mongodb_conf() { return; }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -267,7 +203,7 @@ __certbot() {
   [ "$CERT_BOT_ENABLED" = "true" ] || { export CERT_BOT_ENABLED="" && return 10; }
   [ -n "$CERT_BOT_MAIL" ] || { echo "The variable CERT_BOT_MAIL is not set" >&2 && return 1; }
   [ -n "$CERTBOT_DOMAINS" ] || { echo "The variable CERTBOT_DOMAINS is not set" >&2 && return 1; }
-  for domain in $CERTBOT_DOMAINS; do
+  for domain in $$CERTBOT_DOMAINS; do
     [ -n "$domain" ] && ADD_CERTBOT_DOMAINS+="-d $domain "
   done
   [ -n "$is_renewal" ] && options="renew" ADD_CERTBOT_DOMAINS="" || options="certonly"
@@ -351,7 +287,7 @@ __create_ssl_cert() {
         -days $VALID_FOR \
         -nodes \
         -x509 \
-        -subj "/C=${COUNTRY// /\ }/ST=${STATE// /\ }/L=${CITY// /\ }/O=${ORG// /\ }/OU=${UNIT// /\ }/CN=${CN// /\ }" \
+        -subj "/C=${COUNTRY// /\\ }/ST=${STATE// /\\ }/L=${CITY// /\\ }/O=${ORG// /\\ }/OU=${UNIT// /\\ }/CN=${CN// /\\ }" \
         -keyout "$SSL_KEY" \
         -out "$SSL_CERT"
     fi
@@ -363,137 +299,83 @@ __create_ssl_cert() {
     return 2
   fi
 }
-
-# Enhanced __start_init_scripts function with better error handling and monitoring
-__start_init_scripts() {
-  set -e
-  trap 'echo "❌ Fatal error in service startup - killing container"; rm -f /run/__start_init_scripts.pid; kill -TERM 1' ERR
-  
-  [ "$1" = " " ] && shift 1
-  [ "$DEBUGGER" = "on" ] && echo "Enabling debugging" && set -o pipefail -x$DEBUGGER_OPTIONS || set -o pipefail
-  
-  local basename=""
-  local init_pids=""
-  local retstatus="0"
-  local initStatus="0"
-  local failed_services=""
-  local successful_services=""
-  local init_dir="${1:-/usr/local/etc/docker/init.d}"
-  local init_count="$(find "$init_dir" -name "*.sh" 2>/dev/null | wc -l)"
-  
-  if [ -n "$SERVICE_DISABLED" ]; then
-    echo "$SERVICE_DISABLED is disabled"
-    unset SERVICE_DISABLED
-    return 0
-  fi
-  
-  echo "🚀 Starting container services initialization"
-  echo "📂 Init directory: $init_dir"
-  echo "📊 Services to start: $init_count"
-  
-  # Create a fresh PID file to track this startup session
-  echo $$ > /run/__start_init_scripts.pid
-  
-  mkdir -p "/tmp" "/run" "/run/init.d" "/usr/local/etc/docker/exec" "/data/logs/init"
-  chmod -R 777 "/tmp" "/run" "/run/init.d" "/usr/local/etc/docker/exec" "/data/logs/init"
-  
-  if [ "$init_count" -eq 0 ] || [ ! -d "$init_dir" ]; then
-    echo "⚠️  No init scripts found in $init_dir"
-    # Still create a minimal keep-alive for containers without services
-    while true; do 
-      echo "$(date): No services - container keep-alive" >> "/data/logs/start.log"
-      sleep 3600
-    done &
-  else
-    echo "📋 Found $init_count service scripts to execute"
-    
-    if [ -d "$init_dir" ]; then
-      # Remove sample files  
-      find "$init_dir" -name "*.sample" -delete 2>/dev/null
-      
-      # Make scripts executable
-      find "$init_dir" -name "*.sh" -exec chmod 755 {} \; 2>/dev/null
-      
-      # Execute scripts in numerical/alphabetical order
-      for init in "$init_dir"/*.sh; do
-        if [ -x "$init" ]; then
-          basename="$(basename "$init")"
-          service="$(printf '%s' "$basename" | sed 's/^[0-9]*-//;s|\.sh$||g')"
-          
-          printf '\n🔧 Executing service script: %s (service: %s)\n' "$init" "$service"
-          
-          # Execute the init script and capture its exit code
-          if eval "$init"; then
-            sleep 5  # Give service more time to start properly
-            
-            # Verify the service actually started by checking for PID
-            retPID=$(__get_pid "$service")
-            if [ -n "$retPID" ]; then
-              initStatus="0"
-              successful_services="$successful_services $service"
-              printf '✅ Service %s started successfully - PID: %s\n' "$service" "$retPID"
-            else
-              # Service script succeeded but no PID found - this is suspicious
-              initStatus="1"
-              failed_services="$failed_services $service"
-              printf '⚠️  Service %s script completed but no PID found\n' "$service"
-            fi
-          else
-            # Service script failed
-            script_exit_code="$?"
-            initStatus="1" 
-            failed_services="$failed_services $service"
-            printf '❌ Init script %s failed with exit code %s\n' "$init" "$script_exit_code"
-          fi
-        else
-          printf '⚠️  Script %s is not executable, skipping\n' "$init"
-        fi
-        
-        retstatus=$(($retstatus + $initStatus))
-        printf '\n'
-      done
-      
-      printf '📊 Service startup summary:\n'
-      printf '   ✅ Successful: %s\n' "${successful_services:-none}"
-      printf '   ❌ Failed: %s\n' "${failed_services:-none}"
-      printf '   📈 Total status code: %s\n' "$retstatus"
-      
-      # If any services failed to start, terminate the container immediately
-      if [ $retstatus -gt 0 ]; then
-        echo ""
-        echo "💥 Service startup failures detected!"
-        echo "🔄 Container will terminate to allow orchestrator restart"
-        echo "📝 Check container logs for detailed failure information"
-        
-        # Write failure information to log
-        {
-          echo "$(date): SERVICE STARTUP FAILURE"
-          echo "Successful services: $successful_services"
-          echo "Failed services: $failed_services" 
-          echo "Total errors: $retstatus"
-        } >> "/data/logs/start.log"
-        
-        # Clean up and exit
-        rm -f /run/__start_init_scripts.pid
-        exit $retstatus
-      fi
-    fi
-  fi
-  
-  # Write successful startup status to log
-  {
-    echo "$(date): Container startup completed successfully"
-    echo "Active services: $successful_services"
-    [ -n "$failed_services" ] && echo "Failed services: $failed_services" 
-    echo "Status code: $retstatus"
-  } >> "/data/logs/start.log"
-  
-  printf '\n🎉 All services initialized successfully!\n'
-  printf '🔍 Service monitoring will now begin...\n\n'
-  return $retstatus
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+__init_apache() {
+  local etc_dir="" conf_dir="" conf_dir="" www_dir="" apache_bin=""
+  etc_dir="/etc/${1:-apache2}"
+  conf_dir="/config/${1:-apache2}"
+  www_dir="${WWW_ROOT_DIR:-/data/htdocs}"
+  apache_bin="$(type -P 'httpd' || type -P 'apache2')"
+  #
+  return 0
 }
-
-# Additional functions continue here (keeping the rest of the original functions)...
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+__init_nginx() {
+  local etc_dir="/etc/${1:-nginx}"
+  local conf_dir="/config/${1:-nginx}"
+  local www_dir="${WWW_ROOT_DIR:-/data/htdocs}"
+  local nginx_bin="$(type -P 'nginx')"
+  return 0
+}
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+__init_php() {
+  local etc_dir="/etc/${1:-php}"
+  local conf_dir="/config/${1:-php}"
+  local php_bin="${PHP_BIN_DIR:-$(__find_php_bin)}"
+  return 0
+}
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+__init_mysql() {
+  local db_dir="/data/db/mysql"
+  local etc_dir="${home:-/etc/${1:-mysql}}"
+  local db_user="${SERVICE_USER:-mysql}"
+  local conf_dir="/config/${1:-mysql}"
+  local user_name="${MARIADB_USER:-root}"
+  local user_pass="${MARIADB_PASSWORD:-$MARIADB_ROOT_PASSWORD}"
+  local user_db="${MARIADB_DATABASE}"
+  local root_pass="$MARIADB_ROOT_PASSWORD"
+  local mysqld_bin="$(type -P 'mysqld')"
+  return 0
+}
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+__init_mongodb() {
+  local home="${MONGODB_CONFIG_FILE:-$(__find_mongodb_conf)}"
+  local user_name="${INITDB_ROOT_USERNAME:-root}"
+  local user_pass="${MONGO_INITDB_ROOT_PASSWORD:-$_ROOT_PASSWORD}"
+  return
+}
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+__init_postgres() {
+  local home="${PGSQL_CONFIG_FILE:-$(__find_pgsql_conf)}"
+  local user_name="${POSTGRES_USER:-root}"
+  local user_pass="${POSTGRES_PASSWORD:-$POSTGRES_ROOT_PASSWORD}"
+  return
+}
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+__init_couchdb() {
+  local home="${COUCHDB_CONFIG_FILE:-$(__find_couchdb_conf)}"
+  local user_name="${COUCHDB_USER:-root}"
+  local user_pass="${COUCHDB_PASSWORD:-$SET_RANDOM_PASS}"
+  return
+}
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Show available init functions
+__init_help() {
+  echo '
+__certbot
+__update_ssl_certs
+__create_ssl_cert
+'
+  return
+}
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+__run_once() {
+  if [ "$CONFIG_DIR_INITIALIZED" = "false" ] || [ "$DATA_DIR_INITIALIZED" = "false" ] || [ ! -f "/config/.docker_has_run" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # run program ever n minutes
 __cron() {
@@ -574,15 +456,11 @@ __file_copy() {
     fi
   fi
 }
-
-# The rest of the original functions continue unchanged...
-# [I'm including key functions but truncating for length - the full file would include all original functions]
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __generate_random_uids() {
   local set_random_uid="$(seq 3000 5000 | sort -R | head -n 1)"
   while :; do
-    if grep -ashq "x:.*:$set_random_uid:" "/etc/group" && ! grep -ashq "x:$set_random_uid:.*:" "/etc/passwd"; then
+    if grep -shq "x:.*:$set_random_uid:" "/etc/group" && ! grep -shq "x:$set_random_uid:.*:" "/etc/passwd"; then
       set_random_uid=$((set_random_uid + 1))
     else
       echo "$set_random_uid"
@@ -630,7 +508,7 @@ __fix_permissions() {
   change_group="${2:-${SERVICE_GROUP:-$change_user}}"
   [ -n "$RUNAS_USER" ] && [ "$RUNAS_USER" != "root" ] && change_user="$RUNAS_USER" && change_group="$change_user"
   if [ -n "$change_user" ]; then
-    if grep -ashq "^$change_user:" "/etc/passwd"; then
+    if grep -shq "^$change_user:" "/etc/passwd"; then
       for permissions in $ADD_APPLICATION_DIRS $APPLICATION_DIRS; do
         if [ -n "$permissions" ] && [ -e "$permissions" ]; then
           (chown -Rf $change_user "$permissions" && echo "changed ownership on $permissions to user:$change_user") 2>/dev/stderr | tee -p -a "/data/logs/init.txt"
@@ -639,7 +517,7 @@ __fix_permissions() {
     fi
   fi
   if [ -n "$change_group" ]; then
-    if grep -ashq "^$change_group:" "/etc/group"; then
+    if grep -shq "^$change_group:" "/etc/group"; then
       for permissions in $ADD_APPLICATION_DIRS $APPLICATION_DIRS; do
         if [ -n "$permissions" ] && [ -e "$permissions" ]; then
           (chgrp -Rf $change_group "$permissions" && echo "changed group ownership on $permissions to group $change_group") 2>/dev/stderr | tee -p -a "/data/logs/init.txt"
@@ -649,12 +527,12 @@ __fix_permissions() {
   fi
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-__get_gid() { grep -a "^$1:" /etc/group | awk -F ':' '{print $3}' || false; }
-__get_uid() { grep -a "^$1:" /etc/passwd | awk -F ':' '{print $3}' || false; }
-__check_for_uid() { cat "/etc/passwd" 2>/dev/null | awk -F ':' '{print $3}' | sort -u | grep -aq "^$1$" || false; }
-__check_for_guid() { cat "/etc/group" 2>/dev/null | awk -F ':' '{print $3}' | sort -u | grep -aq "^$1$" || false; }
-__check_for_user() { cat "/etc/passwd" 2>/dev/null | awk -F ':' '{print $1}' | sort -u | grep -aq "^$1$" || false; }
-__check_for_group() { cat "/etc/group" 2>/dev/null | awk -F ':' '{print $1}' | sort -u | grep -aq "^$1$" || false; }
+__get_gid() { grep "^$1:" /etc/group | awk -F ':' '{print $3}' || false; }
+__get_uid() { grep "^$1:" /etc/passwd | awk -F ':' '{print $3}' || false; }
+__check_for_uid() { cat "/etc/passwd" 2>/dev/null | awk -F ':' '{print $3}' | sort -u | grep -q "^$1$" || false; }
+__check_for_guid() { cat "/etc/group" 2>/dev/null | awk -F ':' '{print $3}' | sort -u | grep -q "^$1$" || false; }
+__check_for_user() { cat "/etc/passwd" 2>/dev/null | awk -F ':' '{print $1}' | sort -u | grep -q "^$1$" || false; }
+__check_for_group() { cat "/etc/group" 2>/dev/null | awk -F ':' '{print $1}' | sort -u | grep -q "^$1$" || false; }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # check if process is already running
 __proc_check() {
@@ -669,6 +547,7 @@ __proc_check() {
     return 1
   fi
 }
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __set_user_group_id() {
   local exitStatus=0
@@ -678,9 +557,9 @@ __set_user_group_id() {
   local random_id="$(__generate_random_uids)"
   set_uid="$(__get_uid "$set_user" || echo "$set_uid")"
   set_gid="$(__get_gid "$set_user" || echo "$set_gid")"
-  grep -ashq "^$create_user:" "/etc/passwd" "/etc/group" || return 0
+  grep -shq "^$create_user:" "/etc/passwd" "/etc/group" || return 0
   [ -n "$set_user" ] && [ "$set_user" != "root" ] || return
-  if grep -ashq "^$set_user:" "/etc/passwd" "/etc/group"; then
+  if grep -shq "^$set_user:" "/etc/passwd" "/etc/group"; then
     if __check_for_guid "$set_gid"; then
       groupmod -g "${set_gid}" $set_user 2>/dev/stderr | tee -p -a "/data/logs/init.txt" >/dev/null && chown -Rf ":$set_gid"
     fi
@@ -701,7 +580,7 @@ __create_service_user() {
   local create_gid="${5:-${SERVICE_GID:-$USER_GID}}"
   local random_id="$(__generate_random_uids)"
   local create_home_dir="${create_home_dir:-/home/$create_user}"
-  grep -ashq "^$create_user:" "/etc/passwd" && grep -ashq "^$create_group:" "/etc/group" && return
+  grep -shq "^$create_user:" "/etc/passwd" && grep -shq "^$create_group:" "/etc/group" && return
   [ "$create_user" = "root" ] && [ "$create_group" = "root" ] && return 0
   if [ "$RUNAS_USER" != "root" ] && [ "$RUNAS_USER" != "" ]; then
     create_user="$RUNAS_USER"
@@ -729,8 +608,8 @@ __create_service_user() {
     echo "creating system user $create_user"
     useradd --system -u $create_uid -g $create_group -c "Account for $create_user" -d "$create_home_dir" -s /bin/false $create_user 2>/dev/stderr | tee -p -a "/data/logs/init.txt" >/dev/null
   fi
-  grep -ashq "$create_group" "/etc/group" || exitStatus=$((exitCode + 1))
-  grep -ashq "$create_user" "/etc/passwd" || exitStatus=$((exitCode + 1))
+  grep -shq "$create_group" "/etc/group" || exitStatus=$((exitCode + 1))
+  grep -shq "$create_user" "/etc/passwd" || exitStatus=$((exitCode + 1))
   if [ $exitStatus -eq 0 ]; then
     export WORK_DIR="${create_home_dir:-}"
     if [ -n "$WORK_DIR" ]; then
@@ -739,7 +618,7 @@ __create_service_user() {
     fi
     if [ -d "/etc/sudoers.d" ] && [ ! -f "/etc/sudoers.d/$create_user" ]; then
       echo "$create_user ALL=(ALL)   NOPASSWD: ALL" >"/etc/sudoers.d/$create_user"
-    elif [ -f "/etc/sudoers" ] && grep -aqs "$create_user" "/etc/sudoers"; then
+    elif [ -f "/etc/sudoers" ] && grep -qs "$create_user" "/etc/sudoers"; then
       echo "$create_user ALL=(ALL)   NOPASSWD: ALL" >"/etc/sudoers"
     fi
     export SERVICE_UID="$create_uid"
@@ -783,7 +662,7 @@ __exec_command() {
   local cmdExec="${arg:-}"
   local pre_exec="--login -c"
   local shell="$(type -P bash 2>/dev/null || type -P dash 2>/dev/null || type -P ash 2>/dev/null || type -P sh 2>/dev/null)"
-  bin="$(echo "${arg[*]}" | tr ' ' '\n' | grep -av '^$' | head -n1 | sed 's| ||g' || echo 'bash')"
+  bin="$(echo "${arg[*]}" | tr ' ' '\n' | grep -v '^$' | head -n1 | sed 's| ||g' || echo 'bash')"
   prog="$(type -P "$bin" 2>/dev/null || echo "$bin")"
   if type -t $bin >/dev/null 2>&1; then
     echo "${exec_message:-Executing command: $cmdExec}"
@@ -798,7 +677,99 @@ __exec_command() {
   fi
   return $exitCode
 }
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Setup the server init scripts
+__start_init_scripts() {
+  set -e
+  trap 'echo "❌ Fatal error, killing container"; kill -TERM 1' ERR
+  [ "$1" = " " ] && shift 1
+  [ "$DEBUGGER" = "on" ] && echo "Enabling debugging" && set -o pipefail -x$DEBUGGER_OPTIONS || set -o pipefail
+  local retPID=""
+  local basename=""
+  local init_pids=""
+  local retstatus="0"
+  local initStatus="0"
+  local init_dir="${1:-/usr/local/etc/docker/init.d}"
+  local init_count="$(ls -A "$init_dir"/* 2>/dev/null | grep -v '\.sample' | wc -l)"
+  local critical_failures=0
+  local exit_on_failure="${EXIT_ON_SERVICE_FAILURE:-true}"
 
+  if [ -n "$SERVICE_DISABLED" ]; then
+    unset SERVICE_DISABLED
+    echo "$SERVICE_DISABLED is disabled"
+    return 0
+  fi
+
+  # Clean stale PID files from previous runs
+  if [ ! -f "/run/__start_init_scripts.pid" ]; then
+    echo "🧹 Cleaning stale PID files from previous container run"
+    rm -f /run/*.pid /run/init.d/*.pid 2>/dev/null || true
+  fi
+
+  touch /run/__start_init_scripts.pid
+  mkdir -p "/tmp" "/run" "/run/init.d" "/usr/local/etc/docker/exec"
+  chmod -R 777 "/tmp" "/run" "/run/init.d" "/usr/local/etc/docker/exec"
+
+  if [ "$init_count" -eq 0 ] || [ ! -d "$init_dir" ]; then
+    mkdir -p "/data/logs/init"
+    while :; do echo "Running: $(date)" >"/data/logs/init/keep_alive" && sleep 3600; done &
+  else
+    if [ -d "$init_dir" ]; then
+      [ -f "$init_dir/service.sample" ] && __rm "$init_dir"/*.sample
+      chmod -Rf 755 "$init_dir"/*.sh
+
+      echo "🚀 Starting container services initialization"
+      echo "📂 Init directory: $init_dir"
+      echo "📊 Services to start: $init_count"
+      echo "📋 Found $init_count service scripts to execute"
+      echo ""
+
+      for init in "$init_dir"/*.sh; do
+        if [ -x "$init" ]; then
+          name="$(basename "$init")"
+          service="$(printf '%s' "$name" | sed 's/^[^-]*-//;s|.sh$||g')"
+
+          echo "🔧 Executing service script: $init (service: $service)"
+
+          # Execute the init script and capture the exit code
+          if eval "$init"; then
+            sleep 5
+            retPID=$(__get_pid "$service")
+            if [ -n "$retPID" ]; then
+              initStatus="0"
+              echo "✅ Service $service started successfully - PID: ${retPID}"
+            else
+              initStatus="1"
+              critical_failures=$((critical_failures + 1))
+              echo "⚠️ Service $service appears to have started but no process found"
+            fi
+          else
+            initStatus="1"
+            critical_failures=$((critical_failures + 1))
+            echo "❌ Service $service failed to start - check logs: docker logs $CONTAINER_NAME"
+          fi
+
+          echo ""
+        fi
+        retstatus=$((retstatus + initStatus))
+      done
+
+      # Summary
+      if [ $critical_failures -gt 0 ]; then
+        echo "⚠️ Warning: $critical_failures service(s) failed to start"
+        if [ "$exit_on_failure" = "true" ] && [ $critical_failures -ge 1 ]; then
+          echo "❌ Exiting due to critical service failures"
+          return 1
+        fi
+      else
+        echo "✅ All services started successfully"
+      fi
+    fi
+  fi
+
+  printf '%s\n' "$SERVICE_NAME started on $(date)" >"/data/logs/start.log"
+  return $retstatus
+}
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __setup_mta() {
   [ -d "/etc/ssmtp" ] || [ -d "/etc/postfix" ] || return
@@ -811,13 +782,112 @@ __setup_mta() {
   local local_hostname="${FULL_DOMAIN_NAME:-}"
   local account_user="${SERVER_ADMIN//@*/}"
   local account_domain="${EMAIL_DOMAIN//*@/}"
-  echo "$EMAIL_RELAY" | grep -a '[0-9][0-9]' || relay_port="465"
-  # sSMTP relay setup and postfix setup would continue here...
-  # Simplified for length
+  echo "$EMAIL_RELAY" | grep '[0-9][0-9]' || relay_port="465"
+  ################# sSMTP relay setup
+  if [ -n "$(type -P 'ssmtp')" ]; then
+    [ -d "/config/ssmtp" ] || mkdir -p "/config/ssmtp"
+    [ -f "/etc/ssmtp/ssmtp.conf" ] && __rm "/etc/ssmtp/ssmtp.conf"
+    symlink_files="$(__find_file_relative "/config/ssmtp")"
+    if [ ! -f "/config/ssmtp/ssmtp.conf" ]; then
+      cat <<EOF | tee -p "/config/ssmtp/ssmtp.conf" >/dev/null
+# ssmtp configuration.
+root=${account_user:-root}@${account_domain:-$HOSTNAME}
+mailhub=${relay_server:-172.17.0.1}:$relay_port
+rewriteDomain=$local_hostname
+hostname=$local_hostname
+TLS_CA_FILE=/etc/ssl/certs/ca-certificates.crt
+UseTLS=Yes
+UseSTARTTLS=No
+AuthMethod=LOGIN
+FromLineOverride=yes
+#AuthUser=username
+#AuthPass=password
+
+EOF
+    fi
+    if [ -f "/config/ssmtp/ssmtp.conf" ]; then
+      for file in $symlink_files; do
+        __symlink "/config/ssmtp/$file" "/etc/ssmtp/$file"
+        __initialize_replace_variables "/etc/ssmtp/$file"
+      done
+      if [ -f "/etc/ssmtp/revaliases" ] && [ ! -f "/config/ssmtp/revaliases" ]; then
+        mv -f "/etc/ssmtp/revaliases" "/config/ssmtp/revaliases"
+        __symlink "/config/ssmtp/revaliases" "/etc/ssmtp/revaliases"
+        __initialize_replace_variables "/etc/ssmtp/revaliases"
+      else
+        touch "/config/ssmtp/revaliases"
+        __symlink "/config/ssmtp/revaliases" "/etc/ssmtp/revaliases"
+        __initialize_replace_variables "/etc/ssmtp/revaliases"
+      fi
+      echo "Done setting up ssmtp"
+    fi
+
+    ################# postfix relay setup
+  elif [ -n "$(type -P 'postfix')" ]; then
+    [ -d "/etc/postfix" ] || mkdir -p "/etc/postfix"
+    [ -d "/config/postfix" ] || mkdir -p "/config/postfix"
+    [ -f "/etc/postfix/main.cf" ] && __rm "/etc/postfix/main.cf"
+    symlink_files="$(__find_file_relative "/config/postfix")"
+    if [ ! -f "/config/postfix/main.cf" ]; then
+      cat <<EOF | tee -p "/config/postfix/main.cf" >/dev/null
+# postfix configuration.
+smtpd_banner = \$myhostname ESMTP email server
+compatibility_level = 2
+inet_protocols = ipv4
+inet_interfaces = all
+mydestination =
+local_transport=error: local delivery disabled
+mynetworks = /etc/postfix/mynetworks
+alias_maps = hash:/etc/postfix/aliases
+alias_database = hash:/etc/postfix/aliases
+transport_maps = hash:/etc/postfix/transport
+virtual_alias_maps = hash:/etc/postfix/virtual
+relay_domains = hash:/etc/postfix/mydomains, regexp:/etc/postfix/mydomains.pcre
+tls_random_source = dev:/dev/urandom
+smtp_use_tls = yes
+smtpd_use_tls = yes
+smtpd_tls_session_cache_database = btree:/etc/postfix/smtpd_scache
+smtpd_tls_exclude_ciphers = aNULL, eNULL, EXPORT, DES, RC4, MD5, PSK, aECDH, EDH-DSS-DES-CBC3-SHA, EDH-RSA-DES-CBC3-SHA, KRB5-DES, CBC3-SHA
+smtpd_relay_restrictions = permit_mynetworks, permit_sasl_authenticated, defer_unauth_destination
+append_dot_mydomain = yes
+myorigin = $local_hostname
+myhostname = $local_hostname
+relayhost = [$relay_server]:$relay_port
+
+EOF
+    fi
+    if [ -d "/config/postfix" ]; then
+      for f in $symlink_files; do
+        __symlink "/config/postfix/$f" "/etc/postfix/$f"
+      done
+      __initialize_replace_variables "/etc/postfix"
+      touch "/config/postfix/aliases" "/config/postfix/mynetworks" "/config/postfix/transport"
+      touch "/config/postfix/mydomains.pcre" "/config/postfix/mydomains" "/config/postfix/virtual"
+      postmap "/config/aliases" "/config/mynetworks" "/config/transport" &>/dev/null
+      postmap "/config/mydomains.pcre" "/config/mydomains" "/config/virtual" &>/dev/null
+    fi
+    if [ -f "/etc/postfix/main.cf" ] && [ ! -f "/run/init.d/postfix.pid" ]; then
+      SERVICES_LIST+="postfix "
+      if [ ! -f "/run/init.d/postfix.pid" ]; then
+        __exec_service postfix start
+      fi
+      echo "Done setting up postfix"
+    fi
+  fi
+  [ -f "/root/dead.letter" ] && __rm "/root/dead.letter"
   return $exitCode
 }
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+__initialize_web_health() {
+  local www_dir="${1:-${WWW_ROOT_DIR:-/usr/local/share/httpd/default}}"
+  if [ -d "$www_dir" ]; then
+    __find_replace "REPLACE_CONTAINER_IP4" "${REPLACE_CONTAINER_IP4:-127.0.0.1}" "/usr/local/share/httpd"
+    __find_replace "REPLACE_COPYRIGHT_FOOTER" "${COPYRIGHT_FOOTER:-Copyright 1999 - $(date +'%Y')}" "/usr/local/share/httpd"
+    __find_replace "REPLACE_LAST_UPDATED_ON_MESSAGE" "${LAST_UPDATED_ON_MESSAGE:-$(date +'Last updated on: %Y-%m-%d at %H:%M:%S')}" "/usr/local/share/httpd"
+  fi
+}
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+#  file_dir
 __initialize_replace_variables() {
   local set_dir="" get_dir="$*"
   [ $# -ne 0 ] || return 1
@@ -851,10 +921,14 @@ __initialize_replace_variables() {
     [ -n "$CONTAINER_NAME" ] && __find_replace "REPLACE_SERVER_SOFTWARE" "${CONTAINER_NAME:-docker}" "$set_dir"
     [ -n "$WWW_ROOT_DIR" ] && __find_replace "REPLACE_SERVER_WWW_DIR" "${WWW_ROOT_DIR:-/usr/local/share/httpd/default}" "$set_dir"
   done
+  if [ -n "$WWW_ROOT_DIR" ] && [ "$set_dir" != "$WWW_ROOT_DIR" ] && [ -d "$WWW_ROOT_DIR" ]; then
+    __find_replace "REPLACE_CONTAINER_IP4" "${REPLACE_CONTAINER_IP4:-127.0.0.1}" "$WWW_ROOT_DIR"
+    __find_replace "REPLACE_COPYRIGHT_FOOTER" "${COPYRIGHT_FOOTER:-Copyright 1999 - $(date +'%Y')}" "$WWW_ROOT_DIR"
+    __find_replace "REPLACE_LAST_UPDATED_ON_MESSAGE" "${LAST_UPDATED_ON_MESSAGE:-$(date +'Last updated on: %Y-%m-%d at %H:%M:%S')}" "$WWW_ROOT_DIR"
+  fi
   mkdir -p "${TMP_DIR:-/tmp/$SERVICE_NAME}" "${RUN_DIR:-/run/$SERVICE_NAME}" "${LOG_DIR:-/data/logs/$SERVICE_NAME}"
   chmod -f 777 "${TMP_DIR:-/tmp/$SERVICE_NAME}" "${RUN_DIR:-/run/$SERVICE_NAME}" "${LOG_DIR:-/data/logs/$SERVICE_NAME}"
 }
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __initialize_database() {
   [ "$IS_DATABASE_SERVICE" = "yes" ] || [ "$USES_DATABASE_SERVICE" = "yes" ] || return 0
@@ -873,8 +947,19 @@ __initialize_database() {
   __find_replace "REPLACE_DATABASE_ROOT_PASS" "$db_admin_pass" "$dir"
   __find_replace "REPLACE_DATABASE_NAME" "$DATABASE_NAME" "$dir"
   __find_replace "REPLACE_DATABASE_DIR" "$DATABASE_DIR" "$dir"
+  if echo "$dir" | grep -q '^/etc'; then
+    __find_replace "REPLACE_USER_NAME" "$db_normal_user" "/etc"
+    __find_replace "REPLACE_USER_PASS" "$db_normal_pass" "/etc"
+    __find_replace "REPLACE_DATABASE_USER" "$db_normal_user" "/etc"
+    __find_replace "REPLACE_DATABASE_PASS" "$db_normal_pass" "/etc"
+    __find_replace "REPLACE_ROOT_ADMIN" "$db_admin_user" "/etc"
+    __find_replace "REPLACE_ROOT_PASS" "$db_admin_pass" "/etc"
+    __find_replace "REPLACE_DATABASE_ROOT_USER" "$db_admin_user" "/etc"
+    __find_replace "REPLACE_DATABASE_ROOT_PASS" "$db_admin_pass" "/etc"
+    __find_replace "REPLACE_DATABASE_NAME" "$DATABASE_NAME" "/etc"
+    __find_replace "REPLACE_DATABASE_DIR" "$DATABASE_DIR" "/etc"
+  fi
 }
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __initialize_db_users() {
   [ "$IS_DATABASE_SERVICE" = "yes" ] || [ "$USES_DATABASE_SERVICE" = "yes" ] || return 0
@@ -888,7 +973,6 @@ __initialize_db_users() {
   export DATABASE_PASS_ROOT="$db_admin_pass"
   export db_normal_user db_normal_pass db_admin_user db_admin_pass
 }
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __initialize_system_etc() {
   local conf_dir="$1"
@@ -896,8 +980,8 @@ __initialize_system_etc() {
   local file=()
   local directories=""
   if [ -n "$conf_dir" ] && [ -e "$conf_dir" ]; then
-    files="$(find "$conf_dir"/* -not -path '*/env/*' -type f 2>/dev/null | sed 's|'/config/'||g' | sort -u | grep -av '^$' | grep -a '^' || false)"
-    directories="$(find "$conf_dir"/* -not -path '*/env/*' -type d 2>/dev/null | sed 's|'/config/'||g' | sort -u | grep -av '^$' | grep -a '^' || false)"
+    files="$(find "$conf_dir"/* -not -path '*/env/*' -type f 2>/dev/null | sed 's|'/config/'||g' | sort -u | grep -v '^$' | grep '.' || false)"
+    directories="$(find "$conf_dir"/* -not -path '*/env/*' -type d 2>/dev/null | sed 's|'/config/'||g' | sort -u | grep -v '^$' | grep '.' || false)"
     echo "Copying config files to system: $conf_dir > /etc/${conf_dir//\/config\//}"
     if [ -n "$directories" ]; then
       for d in $directories; do
@@ -916,7 +1000,6 @@ __initialize_system_etc() {
     done
   fi
 }
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __initialize_custom_bin_dir() {
   local SET_USR_BIN=""
@@ -935,7 +1018,6 @@ __initialize_custom_bin_dir() {
     unset create_bin_template create_bin_name SET_USR_BIN
   fi
 }
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __initialize_default_templates() {
   if [ -n "$DEFAULT_TEMPLATE_DIR" ]; then
@@ -956,7 +1038,6 @@ __initialize_default_templates() {
     fi
   fi
 }
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __initialize_config_dir() {
   if [ -n "$DEFAULT_CONF_DIR" ]; then
@@ -977,7 +1058,6 @@ __initialize_config_dir() {
     fi
   fi
 }
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __initialize_data_dir() {
   if [ -d "/data" ]; then
@@ -998,7 +1078,6 @@ __initialize_data_dir() {
     fi
   fi
 }
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __initialize_www_root() {
   local WWW_INIT=""
@@ -1012,12 +1091,11 @@ __initialize_www_root() {
   fi
   __initialize_web_health "$WWW_ROOT_DIR"
 }
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __is_htdocs_mounted() {
   WWW_ROOT_DIR="${WWW_ROOT_DIR:-/data/htdocs}"
   [ -n "$ENV_WWW_ROOT_DIR" ] && WWW_ROOT_DIR="$ENV_WWW_ROOT_DIR"
-  [ -n "$IMPORT_FROM_GIT" ] && echo "$IMPORT_FROM_GIT" | grep -aqE 'https://|http://|git://|ssh://' || unset IMPORT_FROM_GIT
+  [ -n "$IMPORT_FROM_GIT" ] && echo "$IMPORT_FROM_GIT" | grep -qE 'https://|http://|git://|ssh://' || unset IMPORT_FROM_GIT
   if [ -n "$IMPORT_FROM_GIT" ] && [ "$(command -v "git" 2>/dev/null)" ]; then
     if __is_dir_empty "$WWW_ROOT_DIR"; then
       echo "Importing project from $IMPORT_FROM_GIT to $WWW_ROOT_DIR"
@@ -1040,7 +1118,6 @@ __is_htdocs_mounted() {
   [ -d "$WWW_ROOT_DIR" ] || mkdir -p "$WWW_ROOT_DIR"
   export WWW_ROOT_DIR="${WWW_ROOT_DIR:-/usr/local/share/httpd/default}"
 }
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __initialize_ssl_certs() {
   [ "$SSL_ENABLED" = "yes" ] && __certbot
@@ -1068,7 +1145,19 @@ __initialize_ssl_certs() {
   fi
   type update-ca-certificates &>/dev/null && update-ca-certificates &>/dev/null
 }
-
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+__start_php_dev_server() {
+  if [ "$2" = "yes" ]; then
+    if [ -d "/usr/local/share/httpd" ]; then
+      find "/usr/local/share/httpd" -type f -not -path '.git*' -iname '*.php' -exec sed -i 's|[<].*SERVER_ADDR.*[>]|'${CONTAINER_IP4_ADDRESS:-127.0.0.1}'|g' {} \; 2>/dev/null
+      php -S 0.0.0.0:$PHP_DEV_SERVER_PORT -t "/usr/local/share/httpd"
+    fi
+    if ! echo "$1" | grep -q "^/usr/local/share/httpd"; then
+      find "$1" -type f -not -path '.git*' -iname '*.php' -exec sed -i 's|[<].*SERVER_ADDR.*[>]|'${CONTAINER_IP4_ADDRESS:-127.0.0.1}'|g' {} \; 2>/dev/null
+      php -S 0.0.0.0:$PHP_DEV_SERVER_PORT -t "$1"
+    fi
+  fi
+}
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __check_service() {
   if [ "$1" = "check" ]; then
@@ -1077,7 +1166,6 @@ __check_service() {
     exit $?
   fi
 }
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 __switch_to_user() {
   if [ "$RUNAS_USER" = "root" ]; then
@@ -1101,17 +1189,45 @@ __switch_to_user() {
   fi
   export su_exec
 }
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-__initialize_web_health() {
-  local www_dir="${1:-${WWW_ROOT_DIR:-/usr/local/share/httpd/default}}"
-  if [ -d "$www_dir" ]; then
-    __find_replace "REPLACE_CONTAINER_IP4" "${REPLACE_CONTAINER_IP4:-127.0.0.1}" "/usr/local/share/httpd"
-    __find_replace "REPLACE_COPYRIGHT_FOOTER" "${COPYRIGHT_FOOTER:-Copyright 1999 - $(date +'%Y')}" "/usr/local/share/httpd"
-    __find_replace "REPLACE_LAST_UPDATED_ON_MESSAGE" "${LAST_UPDATED_ON_MESSAGE:-$(date +'Last updated on: %Y-%m-%d at %H:%M:%S')}" "/usr/local/share/httpd"
+# usage backup "days" "hours"
+__backup() {
+  local dirs="" backup_dir backup_name backup_exclude runTime cronTime maxDays
+  test -n "$1" && test -z "${1//[0-9]/}" && maxDays="$1" && shift 1 || maxDays="7"
+  test -n "$1" && test -z "${1//[0-9]/}" && cronTime="$1" && shift 1 || cronTime=""
+  local exitCodeP=0
+  local exitStatus=0
+  local pidFile="/run/backup.pid"
+  local logDir="/data/log/backups"
+  maxDays="${BACKUP_MAX_DAYS:-$maxDays}"
+  cronTime="${BACKUP_RUN_CRON:-$cronTime}"
+  backup_dir="$BACKUP_DIR/$(date +'%y/%m')"
+  backup_name="$(date +'%d_%H-%M').tar.gz"
+  backup_exclude="/data/logs $BACKUP_DIR $BACK_EXCLUDE_DIR"
+  [ -d "/data" ] && dirs+="/data "
+  [ -d "/config" ] && dirs+="/config "
+  [ -d "$logDir" ] || mkdir -p "$logDir"
+  [ -d "$backup_dir" ] || mkdir -p "$backup_dir"
+  [ -z "$dirs" ] && echo "BACKUP_DIR is unset" >&2 && return 1
+  [ -f "$pidFile" ] && echo "A backup job is already running" >&2 && return 1
+  echo "$$" >"$pidFile"
+  echo "Starting backup in $(date)" >>"$logDir/$CONTAINER_NAME"
+  tar --exclude $backup_exclude cfvz "$backup_dir/$backup_name" $dirs 2>/dev/stderr >>"$logDir/$CONTAINER_NAME" || exitCodeP=1
+  if [ $exitCodeP -eq 0 ]; then
+    echo "Backup has completed and saved to: $backup_dir/$backup_name"
+    printf '%s\n\n' "Backup has completed on $(date)" >>"$logDir/$CONTAINER_NAME"
+  else
+    __rm "${backup_dir:?}/$backup_name"
+    echo "Backup has failed - log file saved to: $logDir/$CONTAINER_NAME" >&2
+    printf '%s\n\n' "Backup has completed on $(date)" >>"$logDir/$CONTAINER_NAME"
+    exitStatus=1
   fi
+  [ -f "$pidFile" ] && __rm "$pidFile"
+  [ -n "$maxDays" ] && find "$BACKUP_DIR"* -mtime +$maxDays -exec rm -Rf {} \; >/dev/null 2>&1
+  [ -n "$cronTime" ] && runTime=$((cronTime * 3600)) || return $exitStatus
+  sleep $runTime && __backup "$maxDays" "$cronTime"
 }
-
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # set variables from function calls
 export INIT_DATE="${INIT_DATE:-$(date)}"
 export START_SERVICES="${START_SERVICES:-yes}"
@@ -1135,6 +1251,11 @@ export LOCAL_BIN_DIR="${LOCAL_BIN_DIR:-/usr/local/bin}"
 export DEFAULT_DATA_DIR="${DEFAULT_DATA_DIR:-/usr/local/share/template-files/data}"
 export DEFAULT_CONF_DIR="${DEFAULT_CONF_DIR:-/usr/local/share/template-files/config}"
 export DEFAULT_TEMPLATE_DIR="${DEFAULT_TEMPLATE_DIR:-/usr/local/share/template-files/defaults}"
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Backup settings
+export BACKUP_MAX_DAYS="${BACKUP_MAX_DAYS:-}"
+export BACKUP_RUN_CRON="${BACKUP_RUN_CRON:-}"
+export BACKUP_DIR="${BACKUP_DIR:-/data/backups}"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 CONTAINER_IP4_ADDRESS="${CONTAINER_IP4_ADDRESS:-$(__get_ip4)}"
 CONTAINER_IP6_ADDRESS="${CONTAINER_IP6_ADDRESS:-$(__get_ip6)}"
@@ -1164,10 +1285,7 @@ export ENTRYPOINT_CONFIG_INIT_FILE="${ENTRYPOINT_CONFIG_INIT_FILE:-/config/.dock
 export ENTRYPOINT_DATA_INIT_FILE DATA_DIR_INITIALIZED ENTRYPOINT_CONFIG_INIT_FILE CONFIG_DIR_INITIALIZED
 export ENTRYPOINT_PID_FILE ENTRYPOINT_INIT_FILE ENTRYPOINT_FIRST_RUN
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# export the enhanced functions
-export -f __get_pid __start_init_scripts __is_running __certbot __update_ssl_certs __create_ssl_cert __no_exit
-export -f __setup_directories __fix_permissions __create_service_user __set_user_group_id __switch_to_user
-export -f __initialize_replace_variables __initialize_system_etc __initialize_config_dir __initialize_data_dir
-export -f __initialize_default_templates __initialize_custom_bin_dir __is_htdocs_mounted __initialize_ssl_certs
+# export the functions
+export -f __get_pid __start_init_scripts __is_running __certbot __update_ssl_certs __create_ssl_cert
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# end of enhanced functions
+# end of functions

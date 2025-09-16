@@ -1,4 +1,4 @@
-# gitignore created on 07/03/23 at 17:05
+# gitignore created on 09/16/25 at 11:50
 # Disable reminder in prompt
 ignoredirmessage
 
@@ -80,8 +80,9 @@ $RECYCLE.BIN/
 # ignore commit message
 **/.gitcommit
 
-#ignore .failed
-**/.build_failed
+# ignore .build_failed files
+**/.build_failed*
+
 
 # ignore .bak files
 **/*.bak
@@ -95,5 +96,8 @@ $RECYCLE.BIN/
 # ignore .installed files
 **/.installed
 
-# Ignore the database File
-rootfs/usr/local/share/template-files/data/db/rarbg/database.sqlite
+# ignore work in progress files
+**/*.rewrite.sh
+**/*.refactor.sh
+
+

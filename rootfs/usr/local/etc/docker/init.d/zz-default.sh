@@ -31,6 +31,18 @@
 printf '%s\n' "# - - - Initializing rarbg - - - #"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 SERVICE_NAME="rarbg"
+# Function to exit appropriately based on context
+__script_exit() {
+  local exit_code="${1:-0}"
+  if [ "${BASH_SOURCE[0]}" != "${0}" ]; then
+    # Script is being sourced - use return
+    return "$exit_code"
+  else
+    # Script is being executed - use exit
+    exit "$exit_code"
+  fi
+}
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 SCRIPT_NAME="$(basename "$0" 2>/dev/null)"
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 export PATH="/usr/local/etc/docker/bin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin"
@@ -443,4 +455,4 @@ if [ "$?" -ne 0 ] && [ -n "$EXEC_CMD_BIN" ]; then
   rm -Rf "$SERVICE_PID_FILE"
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-exit $SERVICE_EXIT_CODE
+__script_exit $SERVICE_EXIT_CODE

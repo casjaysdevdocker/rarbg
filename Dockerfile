@@ -136,7 +136,7 @@ RUN echo "Updating system files "; \
 
 RUN echo "Custom Settings"; \
   $SHELL_OPTS; \
-echo ""
+  echo ""
 
 RUN echo "Setting up users and scripts "; \
   $SHELL_OPTS; \
@@ -153,7 +153,7 @@ RUN echo "Setting OS Settings "; \
 
 RUN echo "Custom Applications"; \
   $SHELL_OPTS; \
-echo ""
+  echo ""
 
 RUN echo "Running custom commands"; \
   if [ -f "/root/docker/setup/05-custom.sh" ];then echo "Running the custom script";/root/docker/setup/05-custom.sh||{ echo "Failed to execute /root/docker/setup/05-custom.sh" && exit 10; };echo "Done running the custom script";fi; \
@@ -252,5 +252,5 @@ VOLUME [ "/config","/data" ]
 
 EXPOSE ${SERVICE_PORT} ${ENV_PORTS}
 
-ENTRYPOINT [ "tini","--","/usr/local/bin/entrypoint.sh" "start" ]
+ENTRYPOINT [ "tini","--","/usr/local/bin/entrypoint.sh", "start" ]
 HEALTHCHECK --start-period=10m --interval=5m --timeout=15s CMD [ "/usr/local/bin/entrypoint.sh", "healthcheck" ]

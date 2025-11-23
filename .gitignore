@@ -109,8 +109,6 @@ app.env
 compose.default.yaml
 # ignore the default dotenv file
 default.env
-# Exclude the rootfs dir
-rootfs
 
 # Exclude compose.yaml just in case it has sensitive data
 compose.yaml

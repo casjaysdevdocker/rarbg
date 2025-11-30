@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202511291230-git
+##@Version           :  202511301623-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  jason@casjaysdev.pro
 # @@License          :  WTFPL
 # @@ReadME           :  entrypoint.sh --help
 # @@Copyright        :  Copyright: (c) 2025 Jason Hempstead, Casjays Developments
-# @@Created          :  Saturday, Nov 29, 2025 12:30 EST
+# @@Created          :  Sunday, Nov 30, 2025 16:23 EST
 # @@File             :  entrypoint.sh
 # @@Description      :  Entrypoint file for rarbg
 # @@Changelog        :  New script

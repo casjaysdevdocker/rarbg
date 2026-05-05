@@ -368,7 +368,7 @@ if [ -f "$ENTRYPOINT_PID_FILE" ]; then
 else
   START_SERVICES=yes
   # Clean any stale PID files on first run
-  rm -f /run/__start_init_scripts.pid /run/init.d/*.pid /run/*.pid 2>/dev/null || true
+  rm -f /run/.start_init_scripts.pid /run/init.d/*.pid /run/*.pid 2>/dev/null || true
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 [ "$ENTRYPOINT_MESSAGE" = "yes" ] && __printf_space "40" "The containers ip address is:" "$CONTAINER_IP4_ADDRESS"

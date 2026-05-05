@@ -9,8 +9,8 @@ From: <https://github.com/mgdigital/rarbg-selfhosted>
 ```shell
 docker run -d \
 --name casjaysdevdocker-rarbg \
--v "$HOME/.local/share/srv/docker/rarbg/rootfs/config":/config \
--v "$HOME/.local/share/srv/docker/rarbg/rootfs/data":/data \
+-v "$HOME/.local/share/srv/docker/rarbg/volumes/config":/config \
+-v "$HOME/.local/share/srv/docker/rarbg/volumes/data":/data \
 -p 3333:3333 \
 casjaysdevdocker/rarbg
 ```

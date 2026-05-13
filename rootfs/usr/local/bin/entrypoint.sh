@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202511301623-git
+##@Version           :  202602061352-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  jason@casjaysdev.pro
 # @@License          :  WTFPL
 # @@ReadME           :  entrypoint.sh --help
-# @@Copyright        :  Copyright: (c) 2025 Jason Hempstead, Casjays Developments
-# @@Created          :  Sunday, Nov 30, 2025 16:23 EST
+# @@Copyright        :  Copyright: (c) 2026 Jason Hempstead, Casjays Developments
+# @@Created          :  Tuesday, May 05, 2026 14:38 EDT
 # @@File             :  entrypoint.sh
 # @@Description      :  Entrypoint file for rarbg
 # @@Changelog        :  New script
@@ -32,7 +32,7 @@ PATH="/usr/local/etc/docker/bin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin"
 # Set bash options
 SCRIPT_FILE="$0"
 CONTAINER_NAME="rarbg"
-SCRIPT_NAME="$(basename -- "$SCRIPT_FILE" 2>/dev/null)"
+SCRIPT_NAME="${SCRIPT_FILE##*/}"
 CONTAINER_NAME="${ENV_CONTAINER_NAME:-$CONTAINER_NAME}"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # remove whitespaces from beginning argument
@@ -73,30 +73,38 @@ done
 unset set_env
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # User to use to launch service - IE: postgres
-RUNAS_USER="root" # normally root
+# normally root
+RUNAS_USER="root"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set user and group from env
 SERVICE_USER="${PUID:-$SERVICE_USER}"
 SERVICE_GROUP="${PGID:-$SERVICE_GROUP}"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # Set user and group ID
-SERVICE_UID="${SERVICE_UID:-0}" # set the user id
-SERVICE_GID="${SERVICE_GID:-0}" # set the group id
+# set the user id
+SERVICE_UID="${SERVICE_UID:-0}"
+# set the group id
+SERVICE_GID="${SERVICE_GID:-0}"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # User and group in which the service switches to - IE: nginx,apache,mysql,postgres
 #SERVICE_USER="${SERVICE_USER:-rarbg}"   # execute command as another user
 #SERVICE_GROUP="${SERVICE_GROUP:-rarbg}" # Set the service group
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # Secondary ports
-SERVER_PORTS="" # specifiy other ports
+# specifiy other ports
+SERVER_PORTS=""
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # Primary server port- will be added to server ports
-WEB_SERVER_PORT="" # port : 80,443
+# port : 80,443
+WEB_SERVER_PORT=""
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # Healthcheck variables
-HEALTH_ENABLED="yes" # enable healthcheck [yes/no]
-SERVICES_LIST="tini" # comma separated list of processes for the healthcheck
-HEALTH_ENDPOINTS=""  # url endpoints: [http://localhost/health,http://localhost/test]
+# enable healthcheck [yes/no]
+HEALTH_ENABLED="yes"
+# comma separated list of processes for the healthcheck
+SERVICES_LIST="tini"
+# url endpoints: [http://localhost/health,http://localhost/test]
+HEALTH_ENDPOINTS=""
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # Update path var
 export PATH RUNAS_USER SERVICE_USER SERVICE_GROUP SERVICE_UID SERVICE_GID WWW_ROOT_DIR DATABASE_DIR
@@ -162,28 +170,40 @@ export ENTRYPOINT_DATA_INIT_FILE="${ENTRYPOINT_DATA_INIT_FILE:-/data/.docker_has
 export ENTRYPOINT_CONFIG_INIT_FILE="${ENTRYPOINT_CONFIG_INIT_FILE:-/config/.docker_has_run}"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 if [ -n "$CONTAINER_WEB_SERVER_WWW_REPO" ]; then
-  www_temp_dir="/tmp/git/$(basename -- "$CONTAINER_WEB_SERVER_WWW_REPO")"
-  rm -Rf "${WWW_ROOT_DIR:?}"/* "${www_temp_dir:?}"/*
-  mkdir -p "$WWW_ROOT_DIR" "$www_temp_dir"
-  git clone -q "$CONTAINER_WEB_SERVER_WWW_REPO" "$www_temp_dir" 2>/dev/null
-  rm -Rf "$www_temp_dir/.git" "$www_temp_dir"/.git*
-  rsync -ra "$www_temp_dir/" "$WWW_ROOT_DIR" --delete >/dev/null 2>&1
-  rm -Rf "$www_temp_dir"
+  www_temp_dir="/tmp/git/${CONTAINER_WEB_SERVER_WWW_REPO##*/}"
+  rm -Rf "${WWW_ROOT_DIR:?}"/* "${www_temp_dir:?}"/* 2>/dev/null || true
+  mkdir -p "$WWW_ROOT_DIR" "$www_temp_dir" 2>/dev/null || true
+  git clone -q "$CONTAINER_WEB_SERVER_WWW_REPO" "$www_temp_dir" 2>/dev/null || true
+  rm -Rf "$www_temp_dir/.git" "$www_temp_dir"/.git* 2>/dev/null || true
+  rsync -ra "$www_temp_dir/" "$WWW_ROOT_DIR" --delete 2>/dev/null || true
+  rm -Rf "$www_temp_dir" 2>/dev/null || true
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # variables based on env/files
-[ -f "/config/enable/ssl" ] && SSL_ENABLED="yes"
-[ -f "/config/enable/ssh" ] && SSH_ENABLED="yes"
-[ "$WEB_SERVER_PORT" = "443" ] && SSL_ENABLED="yes"
-[ "$CONTAINER_WEB_SERVER_PROTOCOL" = "https" ] && SSL_ENABLED="yes"
+if [ -f "/config/enable/ssl" ]; then SSL_ENABLED="yes"; fi
+if [ -f "/config/enable/ssh" ]; then SSH_ENABLED="yes"; fi
+if [ "$WEB_SERVER_PORT" = "443" ]; then SSL_ENABLED="yes"; fi
+if [ "$CONTAINER_WEB_SERVER_PROTOCOL" = "https" ]; then SSL_ENABLED="yes"; fi
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # export variables
 
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # is already Initialized
-[ -f "$ENTRYPOINT_DATA_INIT_FILE" ] && DATA_DIR_INITIALIZED="yes" || DATA_DIR_INITIALIZED="no"
-[ -f "$ENTRYPOINT_CONFIG_INIT_FILE" ] && CONFIG_DIR_INITIALIZED="yes" || CONFIG_DIR_INITIALIZED="no"
-{ [ -f "$ENTRYPOINT_PID_FILE" ] || [ -f "$ENTRYPOINT_INIT_FILE" ]; } && ENTRYPOINT_FIRST_RUN="no" || ENTRYPOINT_FIRST_RUN="yes"
+if [ -f "$ENTRYPOINT_DATA_INIT_FILE" ]; then
+  DATA_DIR_INITIALIZED="yes"
+else
+  DATA_DIR_INITIALIZED="no"
+fi
+if [ -f "$ENTRYPOINT_CONFIG_INIT_FILE" ]; then
+  CONFIG_DIR_INITIALIZED="yes"
+else
+  CONFIG_DIR_INITIALIZED="no"
+fi
+if [ -f "$ENTRYPOINT_PID_FILE" ] || [ -f "$ENTRYPOINT_INIT_FILE" ]; then
+  ENTRYPOINT_FIRST_RUN="no"
+else
+  ENTRYPOINT_FIRST_RUN="yes"
+fi
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # clean ENV_PORTS variables
 ENV_PORTS="${ENV_PORTS//,/ }"  #
@@ -207,168 +227,236 @@ ENV_PORTS="$(__format_variables "$SERVER_PORTS" "$WEB_SERVER_PORTS" "$ENV_PORTS"
 HEALTH_ENDPOINTS="${HEALTH_ENDPOINTS//,/ }"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # create required directories
-mkdir -p "/run"
-mkdir -p "/tmp"
-mkdir -p "/root"
-mkdir -p "/var/run"
-mkdir -p "/var/tmp"
-mkdir -p "/run/cron"
-mkdir -p "/data/logs"
-mkdir -p "/run/init.d"
-mkdir -p "/config/enable"
-mkdir -p "/config/secure"
-mkdir -p "/usr/local/etc/docker/exec"
+mkdir -p "/run" 2>/dev/null || true
+mkdir -p "/tmp" 2>/dev/null || true
+mkdir -p "/root" 2>/dev/null || true
+mkdir -p "/var/run" 2>/dev/null || true
+mkdir -p "/var/tmp" 2>/dev/null || true
+mkdir -p "/run/cron" 2>/dev/null || true
+mkdir -p "/data/logs" 2>/dev/null || true
+mkdir -p "/run/init.d" 2>/dev/null || true
+mkdir -p "/config/enable" 2>/dev/null || true
+mkdir -p "/config/secure" 2>/dev/null || true
+mkdir -p "/usr/local/etc/docker/exec" 2>/dev/null || true
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # create required files
-touch "/data/logs/start.log"
-touch "/data/logs/entrypoint.log"
+touch "/data/logs/start.log" 2>/dev/null || true
+touch "/data/logs/entrypoint.log" 2>/dev/null || true
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # fix permissions
-chmod -f 777 "/run"
-chmod -f 777 "/tmp"
-chmod -f 700 "/root"
-chmod -f 777 "/var/run"
-chmod -f 777 "/var/tmp"
-chmod -f 777 "/run/cron"
-chmod -f 777 "/data/logs"
-chmod -f 777 "/run/init.d"
-chmod -f 777 "/config/enable"
-chmod -f 777 "/config/secure"
-chmod -f 777 "/data/logs/entrypoint.log"
-chmod -f 777 "/usr/local/etc/docker/exec"
+chmod -f 777 "/run" 2>/dev/null || true
+chmod -f 777 "/tmp" 2>/dev/null || true
+chmod -f 700 "/root" 2>/dev/null || true
+chmod -f 777 "/var/run" 2>/dev/null || true
+chmod -f 777 "/var/tmp" 2>/dev/null || true
+chmod -f 777 "/run/cron" 2>/dev/null || true
+chmod -f 777 "/data/logs" 2>/dev/null || true
+chmod -f 777 "/run/init.d" 2>/dev/null || true
+chmod -f 777 "/config/enable" 2>/dev/null || true
+chmod -f 777 "/config/secure" 2>/dev/null || true
+chmod -f 777 "/data/logs/entrypoint.log" 2>/dev/null || true
+chmod -f 777 "/usr/local/etc/docker/exec" 2>/dev/null || true
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # lets ensure everyone can write to std*
-[ -f "/dev/stdin" ] && chmod -f 777 "/dev/stdin"
-[ -f "/dev/stderr" ] && chmod -f 777 "/dev/stderr"
-[ -f "/dev/stdout" ] && chmod -f 777 "/dev/stdout"
+if [ -f "/dev/stdin" ]; then
+  chmod -f 777 "/dev/stdin" 2>/dev/null || true
+fi
+if [ -f "/dev/stderr" ]; then
+  chmod -f 777 "/dev/stderr" 2>/dev/null || true
+fi
+if [ -f "/dev/stdout" ]; then
+  chmod -f 777 "/dev/stdout" 2>/dev/null || true
+fi
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-cat <<EOF | tee /etc/profile.d/locales.shadow /etc/profile.d/locales.sh >/dev/null
+cat <<EOF 2>/dev/null | tee /etc/profile.d/locales.shadow /etc/profile.d/locales.sh >/dev/null 2>&1 || true
 export LANG="\${LANG:-C.UTF-8}"
 export LC_ALL="\${LANG:-C.UTF-8}"
 export TZ="\${TZ:-\${TIMEZONE:-America/New_York}}"
 EOF
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # Create the backup dir
-[ -n "$BACKUP_DIR" ] && { [ -d "$BACKUP_DIR" ] || mkdir -p "$BACKUP_DIR"; }
+if [ -n "$BACKUP_DIR" ]; then
+  if [ ! -d "$BACKUP_DIR" ]; then
+    mkdir -p "$BACKUP_DIR" 2>/dev/null || true
+  fi
+fi
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 if [ -f "$ENTRYPOINT_INIT_FILE" ]; then
   ENTRYPOINT_MESSAGE="no" ENTRYPOINT_FIRST_RUN="no"
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 if [ "$ENTRYPOINT_FIRST_RUN" != "no" ]; then
-  # Show start message
   if [ "$CONFIG_DIR_INITIALIZED" = "no" ] || [ "$DATA_DIR_INITIALIZED" = "no" ]; then
-    [ "$ENTRYPOINT_MESSAGE" = "yes" ] && echo "Executing entrypoint script for rarbg"
+    if [ "$ENTRYPOINT_MESSAGE" = "yes" ]; then
+      echo "Executing entrypoint script for rarbg"
+    fi
   fi
   # - - - - - - - - - - - - - - - - - - - - - - - - -
   # Set reusable variables
-  { { [ -w "/etc" ] && [ ! -f "/etc/hosts" ]; } || [ -w "/etc/hosts" ]; } && UPDATE_FILE_HOSTS="yes" && touch "/etc/hosts"
-  { { [ -w "/etc" ] && [ ! -f "/etc/timezone" ]; } || [ -w "/etc/timezone" ]; } && UPDATE_FILE_TZ="yes" && touch "/etc/timezone"
-  { { [ -w "/etc" ] && [ ! -f "/etc/resolv.conf" ]; } || [ -w "/etc/resolv.conf" ]; } && UPDATE_FILE_RESOLV="yes" && touch "/etc/resolv.conf"
+  if [ -w "/etc" ] && [ ! -f "/etc/hosts" ]; then
+    UPDATE_FILE_HOSTS="yes"
+    touch "/etc/hosts"
+  elif [ -w "/etc/hosts" ]; then
+    UPDATE_FILE_HOSTS="yes"
+    touch "/etc/hosts"
+  fi
+  if [ -w "/etc" ] && [ ! -f "/etc/timezone" ]; then
+    UPDATE_FILE_TZ="yes"
+    touch "/etc/timezone"
+  elif [ -w "/etc/timezone" ]; then
+    UPDATE_FILE_TZ="yes"
+    touch "/etc/timezone"
+  fi
+  if [ -w "/etc" ] && [ ! -f "/etc/resolv.conf" ]; then
+    UPDATE_FILE_RESOLV="yes"
+    touch "/etc/resolv.conf"
+  elif [ -w "/etc/resolv.conf" ]; then
+    UPDATE_FILE_RESOLV="yes"
+    touch "/etc/resolv.conf"
+  fi
   # - - - - - - - - - - - - - - - - - - - - - - - - -
   # Set timezone
-  [ -n "$TZ" ] && [ "$UPDATE_FILE_TZ" = "yes" ] && echo "$TZ" >"/etc/timezone"
-  [ -f "/usr/share/zoneinfo/$TZ" ] && [ "$UPDATE_FILE_TZ" = "yes" ] && ln -sf "/usr/share/zoneinfo/$TZ" "/etc/localtime"
+  if [ -n "$TZ" ] && [ "$UPDATE_FILE_TZ" = "yes" ]; then
+    echo "$TZ" >"/etc/timezone" 2>/dev/null || true
+  fi
+  if [ -f "/usr/share/zoneinfo/$TZ" ] && [ "$UPDATE_FILE_TZ" = "yes" ]; then
+    ln -sf "/usr/share/zoneinfo/$TZ" "/etc/localtime" 2>/dev/null || true
+  fi
   # - - - - - - - - - - - - - - - - - - - - - - - - -
   # if ipv6 add it to /etc/hosts
   if [ "$UPDATE_FILE_HOSTS" = "yes" ]; then
-    echo "# known hostname mappings" >"/etc/hosts"
+    echo "# known hostname mappings" >"/etc/hosts" 2>/dev/null || true
     if [ -n "$(ip a 2>/dev/null | grep 'inet6.*::' || ifconfig 2>/dev/null | grep 'inet6.*::')" ]; then
-      __printf_space "40" "::1" "localhost" >>"/etc/hosts"
-      __printf_space "40" "127.0.0.1" "localhost" >>"/etc/hosts"
+      __printf_space "40" "::1" "localhost" >>"/etc/hosts" 2>/dev/null || true
+      __printf_space "40" "127.0.0.1" "localhost" >>"/etc/hosts" 2>/dev/null || true
     else
-      __printf_space "40" "127.0.0.1" "localhost" >>"/etc/hosts"
+      __printf_space "40" "127.0.0.1" "localhost" >>"/etc/hosts" 2>/dev/null || true
     fi
   fi
   # - - - - - - - - - - - - - - - - - - - - - - - - -
   # add .internal domain
   if [ "$UPDATE_FILE_HOSTS" = "yes" ] && [ -n "$HOSTNAME" ]; then
-    __grep_test " $HOSTNAME" "/etc/hosts" || __printf_space "40" "${CONTAINER_IP4_ADDRESS:-127.0.0.1}" "$HOSTNAME" >>"/etc/hosts"
-    __grep_test " ${HOSTNAME%%.*}.internal" "/etc/hosts" || __printf_space "40" "${CONTAINER_IP4_ADDRESS:-127.0.0.1}" "${HOSTNAME%%.*}.internal" >>"/etc/hosts"
+    if ! __grep_test " $HOSTNAME" "/etc/hosts"; then
+      __printf_space "40" "${CONTAINER_IP4_ADDRESS:-127.0.0.1}" "$HOSTNAME" >>"/etc/hosts" 2>/dev/null || true
+    fi
+    if ! __grep_test " ${HOSTNAME%%.*}.internal" "/etc/hosts"; then
+      __printf_space "40" "${CONTAINER_IP4_ADDRESS:-127.0.0.1}" "${HOSTNAME%%.*}.internal" >>"/etc/hosts" 2>/dev/null || true
+    fi
   fi
   # - - - - - - - - - - - - - - - - - - - - - - - - -
   # add domainname
   if [ "$UPDATE_FILE_HOSTS" = "yes" ] && [ "$DOMAINNAME" != "internal" ] && [ -n "$DOMAINNAME" ] && [ "$HOSTNAME.$DOMAINNAME" != "$DOMAINNAME" ]; then
-    __grep_test " ${HOSTNAME%%.*}.$DOMAINNAME" "/etc/hosts" || __printf_space "40" "${CONTAINER_IP4_ADDRESS:-127.0.0.1}" "${HOSTNAME%%.*}.$DOMAINNAME" >>"/etc/hosts"
+    if ! __grep_test " ${HOSTNAME%%.*}.$DOMAINNAME" "/etc/hosts"; then
+      __printf_space "40" "${CONTAINER_IP4_ADDRESS:-127.0.0.1}" "${HOSTNAME%%.*}.$DOMAINNAME" >>"/etc/hosts" 2>/dev/null || true
+    fi
   fi
   # - - - - - - - - - - - - - - - - - - - - - - - - -
   # Set containers hostname
-  [ -n "$HOSTNAME" ] && [ "$UPDATE_FILE_HOSTS" = "yes" ] && echo "$HOSTNAME" >"/etc/hostname"
+  if [ -n "$HOSTNAME" ] && [ "$UPDATE_FILE_HOSTS" = "yes" ]; then
+    echo "$HOSTNAME" >"/etc/hostname" 2>/dev/null || true
+  fi
   # - - - - - - - - - - - - - - - - - - - - - - - - -
   if [ -f "/etc/hostname" ]; then
-    [ -n "$(type -P hostname)" ] && hostname -F "/etc/hostname" &>/dev/null || HOSTNAME="$(<"/etc/hostname")"
+    if [ -n "$(type -P hostname 2>/dev/null)" ]; then
+      hostname -F "/etc/hostname" 2>/dev/null || true
+    else
+      HOSTNAME="$(<"/etc/hostname")" 2>/dev/null || true
+    fi
     export HOSTNAME
   fi
   # - - - - - - - - - - - - - - - - - - - - - - - - -
   # import hosts file into container
-  [ -f "/usr/local/etc/hosts" ] && [ "$UPDATE_FILE_HOSTS" = "yes" ] && cat "/usr/local/etc/hosts" | grep -vF "$HOSTNAME" >>"/etc/hosts"
+  if [ -f "/usr/local/etc/hosts" ] && [ "$UPDATE_FILE_HOSTS" = "yes" ]; then
+    grep -vF "$HOSTNAME" "/usr/local/etc/hosts" 2>/dev/null >>"/etc/hosts" 2>/dev/null || true
+  fi
   # - - - - - - - - - - - - - - - - - - - - - - - - -
   # import resolv.conf file into container
-  [ "$CUSTOM_DNS" != "yes" ] && [ -f "/usr/local/etc/resolv.conf" ] && [ "$UPDATE_FILE_RESOLV" = "yes" ] && cat "/usr/local/etc/resolv.conf" >"/etc/resolv.conf"
+  if [ "$CUSTOM_DNS" != "yes" ] && [ -f "/usr/local/etc/resolv.conf" ] && [ "$UPDATE_FILE_RESOLV" = "yes" ]; then
+    cat "/usr/local/etc/resolv.conf" >"/etc/resolv.conf" 2>/dev/null || true
+  fi
   # - - - - - - - - - - - - - - - - - - - - - - - - -
   if [ -n "$HOME" ] && [ -d "/usr/local/etc/skel" ]; then
-    [ -d "$HOME" ] && cp -Rf "/usr/local/etc/skel/." "$HOME/"
+    if [ -d "$HOME" ]; then
+      cp -Rf "/usr/local/etc/skel/." "$HOME/" 2>/dev/null || true
+    fi
   fi
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # Delete any .gitkeep files
-[ -d "/data" ] && rm -Rf "/data/.gitkeep" "/data"/*/*.gitkeep
-[ -d "/config" ] && rm -Rf "/config/.gitkeep" "/config"/*/*.gitkeep
-[ -f "/usr/local/bin/.gitkeep" ] && rm -Rf "/usr/local/bin/.gitkeep"
-# - - - - - - - - - - - - - - - - - - - - - - - - -
-# Setup bin directory - /config/bin > /usr/local/bin
-__initialize_custom_bin_dir
-# - - - - - - - - - - - - - - - - - - - - - - - - -
-# Copy default system configs - /usr/local/share/template-files/defaults > /config/
-__initialize_default_templates
-# - - - - - - - - - - - - - - - - - - - - - - - - -
-# Copy custom config files - /usr/local/share/template-files/config > /config/
-__initialize_config_dir
-# - - - - - - - - - - - - - - - - - - - - - - - - -
-# Copy custom data files - /usr/local/share/template-files/data > /data/
-__initialize_data_dir
-# - - - - - - - - - - - - - - - - - - - - - - - - -
-__initialize_ssl_certs
-# - - - - - - - - - - - - - - - - - - - - - - - - -
-if [ -f "$ENTRYPOINT_INIT_FILE" ]; then
-  ENTRYPOINT_FIRST_RUN="no"
-fi
-# - - - - - - - - - - - - - - - - - - - - - - - - -
-if [ -d "/config" ]; then
-  echo "Initialized on: $INIT_DATE" >"$ENTRYPOINT_INIT_FILE"
-fi
-# - - - - - - - - - - - - - - - - - - - - - - - - -
-# Check if this is a new container
-if [ -f "$ENTRYPOINT_DATA_INIT_FILE" ]; then
-  DATA_DIR_INITIALIZED="yes"
-fi
-# - - - - - - - - - - - - - - - - - - - - - - - - -
 if [ -d "/data" ]; then
-  echo "Initialized on: $INIT_DATE" >"$ENTRYPOINT_DATA_INIT_FILE"
+  rm -Rf "/data/.gitkeep" "/data"/*/*.gitkeep 2>/dev/null || true
 fi
-# - - - - - - - - - - - - - - - - - - - - - - - - -
-if [ -f "$ENTRYPOINT_CONFIG_INIT_FILE" ]; then
-  CONFIG_DIR_INITIALIZED="yes"
-fi
-# - - - - - - - - - - - - - - - - - - - - - - - - -
 if [ -d "/config" ]; then
-  echo "Initialized on: $INIT_DATE" >"$ENTRYPOINT_CONFIG_INIT_FILE"
+  rm -Rf "/config/.gitkeep" "/config"/*/*.gitkeep 2>/dev/null || true
+fi
+if [ -f "/usr/local/bin/.gitkeep" ]; then
+  rm -Rf "/usr/local/bin/.gitkeep" 2>/dev/null || true
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-if [ "$ENTRYPOINT_FIRST_RUN" != "no" ]; then
+# Only run initialization on first run or when directories are not initialized
+if [ "$ENTRYPOINT_FIRST_RUN" != "no" ] || [ "$CONFIG_DIR_INITIALIZED" = "no" ] || [ "$DATA_DIR_INITIALIZED" = "no" ]; then
+  # - - - - - - - - - - - - - - - - - - - - - - - - -
+  # Setup bin directory - /config/bin > /usr/local/bin
+  __initialize_custom_bin_dir
+  # - - - - - - - - - - - - - - - - - - - - - - - - -
+  # Copy default system configs - /usr/local/share/template-files/defaults > /config/
+  if [ "$CONFIG_DIR_INITIALIZED" = "no" ]; then
+    __initialize_default_templates
+  fi
+  # - - - - - - - - - - - - - - - - - - - - - - - - -
+  # Copy custom config files - /usr/local/share/template-files/config > /config/
+  if [ "$CONFIG_DIR_INITIALIZED" = "no" ]; then
+    __initialize_config_dir
+  fi
+  # - - - - - - - - - - - - - - - - - - - - - - - - -
+  # Copy custom data files - /usr/local/share/template-files/data > /data/
+  if [ "$DATA_DIR_INITIALIZED" = "no" ]; then
+    __initialize_data_dir
+  fi
+  # - - - - - - - - - - - - - - - - - - - - - - - - -
+  # Initialize SSL certificates
+  __initialize_ssl_certs
+  # - - - - - - - - - - - - - - - - - - - - - - - - -
+  # Mark directories as initialized (only write if not already initialized)
+  if [ -d "/config" ] && [ "$CONFIG_DIR_INITIALIZED" = "no" ]; then
+    echo "Initialized on: $INIT_DATE" >"$ENTRYPOINT_CONFIG_INIT_FILE" 2>/dev/null || true
+    CONFIG_DIR_INITIALIZED="yes"
+  fi
+  # - - - - - - - - - - - - - - - - - - - - - - - - -
+  if [ -d "/data" ] && [ "$DATA_DIR_INITIALIZED" = "no" ]; then
+    echo "Initialized on: $INIT_DATE" >"$ENTRYPOINT_DATA_INIT_FILE" 2>/dev/null || true
+    DATA_DIR_INITIALIZED="yes"
+  fi
+  # - - - - - - - - - - - - - - - - - - - - - - - - -
+  if [ -d "/config" ] && [ ! -f "$ENTRYPOINT_INIT_FILE" ]; then
+    echo "Initialized on: $INIT_DATE" >"$ENTRYPOINT_INIT_FILE" 2>/dev/null || true
+  fi
+  # - - - - - - - - - - - - - - - - - - - - - - - - -
   # setup the smtp server
   __setup_mta
+  # - - - - - - - - - - - - - - - - - - - - - - - - -
+  ENTRYPOINT_FIRST_RUN="no"
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # if no pid assume container restart - clean stale files on restart
 if [ -f "$ENTRYPOINT_PID_FILE" ]; then
-  START_SERVICES="no"
-  touch "$ENTRYPOINT_PID_FILE"
+  # Check if the PID in the file is still running
+  entrypoint_pid=$(cat "$ENTRYPOINT_PID_FILE" 2>/dev/null || echo "")
+  if [ -n "$entrypoint_pid" ] && kill -0 "$entrypoint_pid" 2>/dev/null; then
+    # Process is still running, don't restart services
+    START_SERVICES="no"
+    touch "$ENTRYPOINT_PID_FILE"
+  else
+    # PID file exists but process is dead - this is a restart
+    START_SERVICES="yes"
+    # Clean any stale PID files on restart
+    rm -f /run/__start_init_scripts.pid /run/init.d/*.pid /run/*.pid 2>/dev/null || true
+  fi
 else
   START_SERVICES=yes
   # Clean any stale PID files on first run
-  rm -f /run/.start_init_scripts.pid /run/init.d/*.pid /run/*.pid 2>/dev/null || true
+  rm -f /run/__start_init_scripts.pid /run/init.d/*.pid /run/*.pid 2>/dev/null || true
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 [ "$ENTRYPOINT_MESSAGE" = "yes" ] && __printf_space "40" "The containers ip address is:" "$CONTAINER_IP4_ADDRESS"
@@ -411,6 +499,9 @@ if [ "$START_SERVICES" = "yes" ] || [ -z "$1" ]; then
     echo "$$" >"$ENTRYPOINT_PID_FILE"
     __start_init_scripts "/usr/local/etc/docker/init.d"
     CONTAINER_INIT="${CONTAINER_INIT:-no}"
+    # Services started successfully - enter monitoring mode
+    __no_exit
+    exit $?
   fi
   START_SERVICES="no"
 fi
@@ -420,7 +511,7 @@ export START_SERVICES CONTAINER_INIT ENTRYPOINT_PID_FILE
 case "$1" in
 init)
   shift 1
-  echo "Container has been Initialized"
+  __log_info "Container has been initialized"
   exit 0
   ;;
 tail)
@@ -451,7 +542,7 @@ logs)
   clean)
     log_files="$(find "/data/logs" -type f)"
     for log in "${log_files[@]}"; do
-      echo "clearing $log"
+      __log_info "Clearing log file: $log"
       printf '' >$log
     done
     ;;
@@ -464,7 +555,7 @@ logs)
 cron)
   shift 1
   __cron "$@" &
-  echo "cron script is running with pid: $!"
+  __log_info "Cron script is running with PID: $!"
   exit
   ;;
 # backup data and config dirs
@@ -492,7 +583,7 @@ healthcheck)
     [ "$healthEnabled" = "yes" ] || exit 0
     if [ -d "/run/healthcheck" ] && [ "$(ls -A "/run/healthcheck" | wc -l)" -ne 0 ]; then
       for service in /run/healthcheck/*; do
-        name=$(basename -- $service)
+        name="${service##*/}"
         services+="$name "
       done
     fi

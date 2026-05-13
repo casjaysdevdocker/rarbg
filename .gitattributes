@@ -1,4 +1,4 @@
-# Template generated on Thu Sep  4 10:41:50 PM EDT 2025 from https://github.com/alexkaratarakis/gitattributes"
+# Template generated on Sat Nov 29 11:57:12 AM EST 2025 from https://github.com/alexkaratarakis/gitattributes"
 # Common settings that generally should always be used with your language specific settings
 # Auto detect text files and perform LF normalization
 *          text=auto

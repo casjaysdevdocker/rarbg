@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202511301145-git
+##@Version           :  202605241142-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  git-admin@casjaysdev.pro
 # @@License          :  LICENSE.md
@@ -25,13 +25,27 @@ if [ -f "/config/.debug" ] && [ -z "$DEBUGGER_OPTIONS" ]; then
   export DEBUGGER_OPTIONS="$(<"/config/.debug")"
 fi
 if [ "$DEBUGGER" = "on" ] || [ -f "/config/.debug" ]; then
-  set -xo pipefail -x$DEBUGGER_OPTIONS
+  set -o pipefail
+  [ -n "$DEBUGGER_OPTIONS" ] && set -"$DEBUGGER_OPTIONS"
   export DEBUGGER="on"
 else
   set -o pipefail
 fi
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-__remove_extra_spaces() { sed 's/\( \)*/\1/g;s|^ ||g'; }
+__remove_extra_spaces() { sed -E 's/  +/ /g; s|^ ||'; }
+# - - - - - - - - - - - - - - - - - - - - - - - - -
+__log_debug() {
+  [ "$DEBUGGER" = "on" ] && echo "[DEBUG] $*" >&2
+}
+__log_info() {
+  echo "[INFO] $*"
+}
+__log_warn() {
+  echo "[WARN] $*" >&2
+}
+__log_error() {
+  echo "[ERROR] $*" >&2
+}
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __printf_space() {
   local pad=$(printf '%0.1s' " "{1..60})
@@ -47,185 +61,137 @@ __printf_space() {
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __mkdir() {
   if [ -n "$1" ]; then
-    mkdir -p "$@" 2>/dev/null || true
+    if ! mkdir -p "$@" 2>/dev/null; then
+      [ "$DEBUGGER" = "on" ] && echo "Warning: Failed to create directory: $*" >&2
+      return 1
+    fi
   fi
+  return 0
 }
 __rm() {
   if [ -n "$1" ] && [ -e "$1" ]; then
-    rm -Rf "${1:?}" 2>/dev/null || true
-  fi
-}
-__grep_test() {
-  if grep -sh "$1" "$2" 2>/dev/null | grep -qwF "${3:-$1}"; then
-    return 0
-  else
-    return 1
-  fi
-}
-__netstat() {
-  if [ -f "$(type -P netstat 2>/dev/null)" ]; then
-    netstat "$@" 2>/dev/null
-  else
-    return 10
-  fi
-}
-__cd() {
-  if [ ! -d "$1" ]; then
-    mkdir -p "$1" 2>/dev/null || return 1
-  fi
-  builtin cd "$1" || return 1
-}
-__is_in_file() {
-  if [ -e "$2" ] && grep -Rsq "$1" "$2" 2>/dev/null; then
-    return 0
-  else
-    return 1
-  fi
-}
-__curl() {
-  if curl -q -sfI --max-time 3 -k -o /dev/null "$@" 2>/dev/null; then
-    return 0
-  else
-    return 10
-  fi
-}
-__find() {
-  if find "$1" -mindepth 1 -type ${2:-f,d} 2>/dev/null | grep '.'; then
-    return 0
-  else
-    return 10
-  fi
-}
-__pcheck() {
-  if [ -n "$(which pgrep 2>/dev/null)" ] && pgrep -x "$1" &>/dev/null; then
-    return 0
-  else
-    return 10
-  fi
-}
-__file_exists_with_content() {
-  if [ -n "$1" ] && [ -f "$1" ] && [ -s "$1" ]; then
-    return 0
-  else
-    return 2
-  fi
-}
-__sed() {
-  if sed -i 's|'$1'|'$2'|g' "$3" 2>/dev/null; then
-    return 0
-  elif sed -i "s|$1|$2|g" "$3" 2>/dev/null; then
-    return 0
-  else
-    return 0
-  fi
-}
-__ps() {
-  if [ -f "$(type -P ps 2>/dev/null)" ]; then
-    if ps "$@" 2>/dev/null | sed 's|:||g' | grep -Fw " ${1:-$SERVICE_NAME}$"; then
-      return 0
-    else
-      return 10
-    fi
-  else
-    return 10
-  fi
-}
-__is_dir_empty() {
-  if [ -n "$1" ]; then
-    if [ "$(ls -A "$1" 2>/dev/null | wc -l)" -eq 0 ]; then
-      return 0
-    else
+    if ! rm -Rf "${1:?}" 2>/dev/null; then
+      [ "$DEBUGGER" = "on" ] && echo "Warning: Failed to remove: $1" >&2
       return 1
     fi
-  else
-    return 1
   fi
+  return 0
+}
+__grep_test() { grep -sh "$1" "$2" 2>/dev/null | grep -qwF "${3:-$1}"; }
+__netstat() {
+  command -v netstat &>/dev/null || {
+    [ "$DEBUGGER" = "on" ] && echo "Warning: netstat command not found" >&2
+    return 10
+  }
+  netstat "$@" 2>/dev/null
+}
+__cd() {
+  [ -d "$1" ] || mkdir -p "$1" 2>/dev/null || return 1
+  builtin cd "$1" || return 1
+}
+__is_in_file() { [ -e "$2" ] && grep -Rsq "$1" "$2" 2>/dev/null; }
+__curl() { curl -q -sfI --max-time 3 -k -o /dev/null "$@" 2>/dev/null || return 10; }
+__find() {
+  local result
+  result=$(find "$1" -mindepth 1 -type "${2:-f,d}" 2>/dev/null)
+  [ -n "$result" ] || return 10
+  printf '%s\n' "$result"
+}
+__pcheck() {
+  command -v pgrep &>/dev/null && pgrep -x "$1" &>/dev/null || return 10
+}
+__file_exists_with_content() { [ -n "$1" ] && [ -f "$1" ] && [ -s "$1" ] || return 2; }
+__sed() { sed -i "s|$1|$2|g" "$3" 2>/dev/null || return 1; }
+__ps() {
+  command -v ps &>/dev/null || return 10
+  ps "$@" 2>/dev/null | sed 's|:||g' | grep -Fw " ${1:-$SERVICE_NAME}$" || return 10
+}
+__is_dir_empty() {
+  [ -n "$1" ] && [ -d "$1" ] || return 1
+  [ -z "$(ls -A "$1" 2>/dev/null)" ]
 }
 __get_ip6() {
-  local ip6
-  ip6="$(ip a 2>/dev/null | grep -w 'inet6' | awk '{print $2}' | grep -vE '^::1|^fe' | sed 's|/.*||g' | head -n1 | grep '.')"
-  if [ -n "$ip6" ]; then
-    echo "$ip6"
-  else
-    echo ''
-  fi
+  ip a 2>/dev/null | awk '/^[[:space:]]*inet6 / {
+    split($2, a, "/"); ip = a[1]
+    if (ip !~ /^::1$/ && ip !~ /^fe/) { print ip; exit }
+  }'
 }
 __get_ip4() {
   local ip4
-  ip4="$(ip a 2>/dev/null | grep -w 'inet' | awk '{print $2}' | grep -vE '^127.0.0' | sed 's|/.*||g' | head -n1 | grep '.')"
-  if [ -n "$ip4" ]; then
-    echo "$ip4"
-  else
-    echo '127.0.0.1'
-  fi
+  ip4=$(ip a 2>/dev/null | awk '/^[[:space:]]*inet / {
+    split($2, a, "/"); ip = a[1]
+    if (ip !~ /^127\.0\.0/) { print ip; exit }
+  }')
+  echo "${ip4:-127.0.0.1}"
 }
 __find_and_remove() {
   find "${2:-/etc}" -iname "$1" -exec rm -Rfv {} \; 2>/dev/null || true
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __pgrep() {
-  local count=3
-  local srvc="${1:-SERVICE_NAME}"
+  local srvc="$1" count=3
+  [ -z "$srvc" ] && return 10
   while [ $count -ge 0 ]; do
-    # Use exact process name matching, not full command line search
-    pgrep -x "$srvc" >/dev/null 2>&1 && return 0
-    sleep 1
+    pgrep -x "$srvc" &>/dev/null && return 0
+    pgrep -f "$srvc" &>/dev/null && return 0
+    ps -eo comm 2>/dev/null | grep -qxF "$srvc" && return 0
+    [ $count -gt 0 ] && sleep 1
     count=$((count - 1))
   done
   return 10
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __find_file_relative() {
-  if [ ! -e "$1" ]; then
-    return 0
-  fi
-  find "$1"/* -not -path '*env/*' -not -path '.git*' -type f 2>/dev/null | sed 's|'$1'/||g' | sort -u | grep -v '^$' | grep '.' || true
+  [ -e "$1" ] || return 0
+  find "$1"/* -not -path '*env/*' -not -path '*/.git/*' -not -name '.git' -type f 2>/dev/null \
+    | sort -u \
+    | sed "s|^$1/||" || true
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __find_directory_relative() {
-  if [ ! -d "$1" ]; then
-    return 0
-  fi
-  find "$1"/* -not -path '*env/*' -not -path '.git*' -type d 2>/dev/null | sed 's|'$1'/||g' | sort -u | grep -v '^$' | grep '.' || true
+  [ -d "$1" ] || return 0
+  find "$1"/* -not -path '*env/*' -not -path '*/.git/*' -not -name '.git' -type d 2>/dev/null \
+    | sort -u \
+    | sed "s|^$1/||" || true
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-__pid_exists() {
-  local result=""
-  result="$(ps -ax --no-header 2>/dev/null | sed 's/^[[:space:]]*//g' | awk -F' ' '{print $1}' | sed 's|:||g' | grep '[0-9]' | sort -uV | grep "^$1$" 2>/dev/null || echo '')"
-  if [ -n "$result" ]; then
-    return 0
-  else
-    return 1
-  fi
-}
+__pid_exists() { [ -n "$1" ] && [ -d "/proc/$1" ]; }
 __is_running() {
-  local result=""
-  result="$(ps -eo args --no-header 2>/dev/null | awk '{print $1,$2,$3}' | sed 's|:||g' | sort -u | grep -vE 'grep|COMMAND|awk|tee|ps|sed|sort|tail' | grep "$1" | grep "${2:-^}" 2>/dev/null || echo '')"
-  if [ -n "$result" ]; then
-    return 0
+  local pat="$1"
+  [ -n "$2" ] && pat="$pat.*$2"
+  if command -v pgrep &>/dev/null; then
+    pgrep -f "$pat" &>/dev/null
   else
-    return 1
+    ps -eo args 2>/dev/null | grep -v grep | grep -Eq "$pat"
   fi
 }
 __get_pid() {
-  local result=""
-  result="$(ps -ax --no-header 2>/dev/null | sed 's/^[[:space:]]*//g;s|;||g;s|:||g' | awk '{print $1,$5}' | sed 's|:||g' | grep "$1$" | grep -v 'grep' | awk -F' ' '{print $1}' | grep '[0-9]' | sort -uV | head -n1 | grep '.' 2>/dev/null || echo '')"
-  if [ -n "$result" ]; then
-    echo "$result"
-    return 0
-  else
+  if [ -z "$1" ]; then
+    [ "$DEBUGGER" = "on" ] && echo "Warning: __get_pid called without process name" >&2
     return 1
   fi
+  local pid
+  pid=$(pgrep -x -n "$1" 2>/dev/null)
+  if [ -n "$pid" ]; then
+    echo "$pid"
+    return 0
+  fi
+  [ "$DEBUGGER" = "on" ] && echo "Debug: No PID found for process: $1" >&2
+  return 1
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-__format_variables() { printf '%s\n' "${@//,/ }" | tr ' ' '\n' | sort -RVu | grep -v '^$' | tr '\n' ' ' | __clean_variables | grep '.' || return 0; }
+__format_variables() {
+  local input="${*//,/ }"
+  [ -z "$input" ] && return 0
+  printf '%s\n' $input | sort -Ru | tr '\n' ' '
+}
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __clean_variables() {
   local var="$*"
-  var="${var#"${var%%[![:space:]]*}"}" # remove leading whitespace characters
-  var="${var%"${var##*[![:space:]]}"}" # remove trailing whitespace characters
-  var="$(printf '%s\n' "$var" | sed 's/\( \)*/\1/g;s|^ ||g')"
-  printf '%s' "$var" | grep -v '^$'
+  var="${var#"${var%%[![:space:]]*}"}"
+  var="${var%"${var##*[![:space:]]}"}"
+  while [[ $var == *"  "* ]]; do var="${var//  / }"; done
+  [ -n "$var" ] && printf '%s' "$var"
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __no_exit() {
@@ -235,45 +201,57 @@ __no_exit() {
   local failed_services=""
   local failure_count=0
 
-  [ -f "/run/.no_exit.pid" ] && return 0
+  # only return early if the recorded PID is still alive; a leftover
+  # pid file from a prior container life (docker restart) would otherwise
+  # cause us to exit instead of entering the monitor loop.
+  if [ -f "/run/.no_exit.pid" ]; then
+    local no_exit_pid
+    no_exit_pid=$(<"/run/.no_exit.pid") 2>/dev/null
+    if [ -n "$no_exit_pid" ] && kill -0 "$no_exit_pid" 2>/dev/null; then
+      return 0
+    fi
+    rm -f /run/.no_exit.pid 2>/dev/null || true
+  fi
 
   exec bash -c "
     trap 'echo \"Container shutdown requested\"; rm -f /run/.no_exit.pid /run/*.pid; exit 0' TERM INT
     echo \$\$ > /run/.no_exit.pid
+    failed_services=\"\"
+    failure_count=0
 
     while true; do
       if [ -n \"$monitor_services\" ] && [ \"$monitor_services\" != \"tini\" ]; then
         for service in \$(echo \"$monitor_services\" | tr ',' ' '); do
           if [ \"\$service\" != \"tini\" ] && ! pgrep -x \"\$service\" >/dev/null 2>&1; then
-            echo \"⚠️ Service \$service is not running\" >&2
+            echo \"WARNING: Service \$service is not running\" >&2
             failed_services=\"\$failed_services \$service\"
             failure_count=\$((failure_count + 1))
           fi
         done
 
         if [ \$failure_count -ge $failure_threshold ]; then
-          echo \"❌ Too many service failures (\$failure_count), exiting container\" >&2
+          echo \"ERROR: Too many service failures (\$failure_count), exiting container\" >&2
           exit 1
         fi
 
         if [ -n \"\$failed_services\" ]; then
-          echo \"⚠️ Failed services:\$failed_services\" >&2
+          echo \"WARNING: Failed services:\$failed_services\" >&2
           failed_services=\"\"
+          failure_count=0
         fi
       fi
 
-      sleep $monitor_interval
-    done &
-    wait
+      sleep $monitor_interval & wait \$!
+    done
   "
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __trim() {
   local var="${*//;/ }"
-  var="${var#"${var%%[![:space:]]*}"}" # remove leading whitespace characters
-  var="${var%"${var##*[![:space:]]}"}" # remove trailing whitespace characters
-  var="$(echo "$var" | __remove_extra_spaces | sed "s| |; |g;s|;$| |g" | __remove_extra_spaces)"
-  printf '%s' "$var" | sed 's|;||g' | grep -v '^$'
+  var="${var#"${var%%[![:space:]]*}"}"
+  var="${var%"${var##*[![:space:]]}"}"
+  while [[ $var == *"  "* ]]; do var="${var//  / }"; done
+  [ -n "$var" ] && printf '%s' "$var"
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __banner() {
@@ -295,21 +273,25 @@ __service_banner() {
   printf '# - - - %s %-*s %s - - - #\n' "$icon" "$text_width" "$full_message" "$icon"
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-__find_php_bin() { find -L '/usr'/*bin -maxdepth 4 -name 'php-fpm*' 2>/dev/null | head -n1 | grep '.' || echo ''; }
-__find_php_ini() { find -L '/etc' -maxdepth 4 -name 'php.ini' 2>/dev/null | head -n1 | sed 's|/php.ini||g' | grep '.' || echo ''; }
+__find_php_bin() { find -L '/usr'/*bin -maxdepth 4 -name 'php-fpm*' 2>/dev/null | head -n1; }
+__find_php_ini() {
+  local f
+  f=$(find -L '/etc' -maxdepth 4 -name 'php.ini' 2>/dev/null | head -n1)
+  [ -n "$f" ] && printf '%s\n' "${f%/php.ini}"
+}
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-__find_nginx_conf() { find -L '/etc' -maxdepth 4 -name 'nginx.conf' 2>/dev/null | head -n1 | grep '.' || echo ''; }
-__find_caddy_conf() { find -L '/etc' -maxdepth 4 -type f -iname 'caddy.conf' 2>/dev/null | head -n1 | grep '.' || echo ''; }
-__find_lighttpd_conf() { find -L '/etc' -maxdepth 4 -type f -iname 'lighttpd.conf' 2>/dev/null | head -n1 | grep '.' || echo ''; }
-__find_cherokee_conf() { find -L '/etc' -maxdepth 4 -type f -iname 'cherokee.conf' 2>/dev/null | head -n1 | grep '.' || echo ''; }
-__find_httpd_conf() { find -L '/etc' -maxdepth 4 -type f -iname 'httpd.conf' -o -iname 'apache2.conf' 2>/dev/null | head -n1 | grep '.' || echo ''; }
+__find_nginx_conf() { find -L '/etc' -maxdepth 4 -name 'nginx.conf' 2>/dev/null | head -n1; }
+__find_caddy_conf() { find -L '/etc' -maxdepth 4 -type f -iname 'caddy.conf' 2>/dev/null | head -n1; }
+__find_lighttpd_conf() { find -L '/etc' -maxdepth 4 -type f -iname 'lighttpd.conf' 2>/dev/null | head -n1; }
+__find_cherokee_conf() { find -L '/etc' -maxdepth 4 -type f -iname 'cherokee.conf' 2>/dev/null | head -n1; }
+__find_httpd_conf() { find -L '/etc' -maxdepth 4 -type f -iname 'httpd.conf' -o -iname 'apache2.conf' 2>/dev/null | head -n1; }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-__find_mysql_conf() { find -L '/etc' -maxdepth 4 -type f -name 'my.cnf' 2>/dev/null | head -n1 | grep '.' || echo ''; }
-__find_pgsql_conf() { find -L '/var/lib' '/etc' -maxdepth 8 -type f -name 'postgresql.conf' 2>/dev/null | head -n1 | grep '.' || echo ''; }
+__find_mysql_conf() { find -L '/etc' -maxdepth 4 -type f -name 'my.cnf' 2>/dev/null | head -n1; }
+__find_pgsql_conf() { find -L '/var/lib' '/etc' -maxdepth 8 -type f -name 'postgresql.conf' 2>/dev/null | head -n1; }
 __find_couchdb_conf() { return; }
 __find_mongodb_conf() { return; }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-__random_password() { cat "/dev/urandom" | tr -dc '0-9a-zA-Z' | head -c${1:-16} && echo ""; }
+__random_password() { tr -dc '0-9a-zA-Z' < /dev/urandom | head -c${1:-16} && echo ""; }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __init_working_dir() {
   local service_name="$SERVICE_NAME"                           # get service name
@@ -355,7 +337,7 @@ __exec_service() {
   eval "$@" 2>>/dev/stderr >>/data/logs/start.log &
   while [ $count -ne 0 ]; do
     sleep 3
-    if __pgrep $1; then
+    if __pgrep "$1"; then
       touch "/run/init.d/$1.pid"
       break
     else
@@ -383,7 +365,7 @@ __certbot() {
   local ADD_CERTBOT_DOMAINS=""
   local CERTBOT_DOMAINS="${CERTBOT_DOMAINS:-$HOSTNAME}"
   local CERT_BOT_MAIL="${CERT_BOT_MAIL:-ssl-admin@$CERTBOT_DOMAINS}"
-  local certbot_key_opts="--key-path $SSL_KEY --fullchain-path $SSL_CERT"
+  local certbot_key_opts=""
   mkdir -p "/config/letsencrypt"
   __symlink "/etc/letsencrypt" "/config/letsencrypt"
   is_renewal="$(find /etc/letsencrypt/renewal -type f 2>/dev/null || false)"
@@ -418,38 +400,39 @@ __certbot() {
   for domain in $CERTBOT_DOMAINS; do
     [ -n "$domain" ] && ADD_CERTBOT_DOMAINS+="-d $domain "
   done
+  local expand_opt=""
   if [ -n "$is_renewal" ]; then
     options="renew"
     ADD_CERTBOT_DOMAINS=""
   else
     options="certonly"
+    expand_opt="--expand"
   fi
-  certbot_key_opts="$certbot_key_opts $ADD_CERTBOT_DOMAINS"
+  certbot_key_opts="$ADD_CERTBOT_DOMAINS"
   if [ -f "/config/certbot/setup.sh" ]; then
-    eval "/config/certbot/setup.sh"
+    \bash "/config/certbot/setup.sh"
     statusCode=$?
   elif [ -f "/etc/named/certbot.sh" ]; then
-    eval "/etc/named/certbot.sh"
+    \bash "/etc/named/certbot.sh"
     statusCode=$?
   elif [ -f "/config/certbot/dns.conf" ]; then
-    if certbot $options -n --dry-run --agree-tos --expand --dns-rfc2136 --dns-rfc2136-credentials /config/certbot/dns.conf $certbot_key_opts; then
-      certbot $options -n --agree-tos --expand --dns-rfc2136 --dns-rfc2136-credentials /config/certbot/dns.conf $certbot_key_opts
+    if certbot $options -n --dry-run --agree-tos $expand_opt --dns-rfc2136 --dns-rfc2136-credentials /config/certbot/dns.conf $certbot_key_opts; then
+      certbot $options -n --agree-tos $expand_opt --dns-rfc2136 --dns-rfc2136-credentials /config/certbot/dns.conf $certbot_key_opts
     fi
     statusCode=$?
   elif [ -f "/config/certbot/certbot.conf" ]; then
-    if certbot $options -n --dry-run --agree-tos --expand --dns-rfc2136 --dns-rfc2136-credentials /config/certbot/certbot.conf $certbot_key_opts; then
-      certbot $options -n --agree-tos --expand --dns-rfc2136 --dns-rfc2136-credentials /config/certbot/certbot.conf $certbot_key_opts
+    if certbot $options -n --dry-run --agree-tos $expand_opt --dns-rfc2136 --dns-rfc2136-credentials /config/certbot/certbot.conf $certbot_key_opts; then
+      certbot $options -n --agree-tos $expand_opt --dns-rfc2136 --dns-rfc2136-credentials /config/certbot/certbot.conf $certbot_key_opts
     fi
     statusCode=$?
   elif [ -f "/config/named/certbot-update.conf" ]; then
-    if certbot $options -n --dry-run --agree-tos --expand --dns-rfc2136 --dns-rfc2136-credentials /config/named/certbot-update.conf $certbot_key_opts; then
-      certbot $options -n --agree-tos --expand --dns-rfc2136 --dns-rfc2136-credentials /config/named/certbot-update.conf $certbot_key_opts
+    if certbot $options -n --dry-run --agree-tos $expand_opt --dns-rfc2136 --dns-rfc2136-credentials /config/named/certbot-update.conf $certbot_key_opts; then
+      certbot $options -n --agree-tos $expand_opt --dns-rfc2136 --dns-rfc2136-credentials /config/named/certbot-update.conf $certbot_key_opts
     fi
     statusCode=$?
   else
-    certbot_key_opts="$certbot_key_opts --webroot ${WWW_ROOT_DIR:-/usr/local/share/httpd/default}"
     if [ -n "$ADD_CERTBOT_DOMAINS" ]; then
-      certbot $options --agree-tos -m $CERT_BOT_MAIL certonly --webroot "${WWW_ROOT_DIR:-/usr/local/share/httpd/default}" $certbot_key_opts
+      certbot $options --agree-tos -m $CERT_BOT_MAIL --webroot "${WWW_ROOT_DIR:-/usr/local/share/httpd/default}" $certbot_key_opts
       statusCode=$?
     else
       statusCode=1
@@ -462,17 +445,29 @@ __certbot() {
 __display_user_info() {
   if [ -n "$user_name" ] || [ -n "$user_pass" ] || [ -n "$root_user_name" ] || [ -n "$root_user_pass" ]; then
     __banner "User info"
-    [ -n "$user_name" ] && __printf_space "40" "username:" "$user_name" && echo "$user_name"
-    [ -n "$user_pass" ] && __printf_space "40" "password:" "saved to ${USER_FILE_PREFIX}/${SERVICE_NAME}_pass" && echo "$user_pass"
-    [ -n "$root_user_name" ] && __printf_space "40" "root username:" "$root_user_name" && echo "$root_user_name"
-    [ -n "$root_user_pass" ] && __printf_space "40" "root password:" "saved to ${ROOT_FILE_PREFIX}/${SERVICE_NAME}_pass" && echo "$root_user_pass"
+    [ -n "$user_name" ] && __printf_space "40" "username:" "$user_name"
+    if [ -n "$user_pass" ]; then
+      if [ "${SHOW_PASSWORDS:-no}" = "yes" ]; then
+        __printf_space "40" "password:" "$user_pass"
+      else
+        __printf_space "40" "password:" "saved to ${USER_FILE_PREFIX}/${SERVICE_NAME}_pass"
+      fi
+    fi
+    [ -n "$root_user_name" ] && __printf_space "40" "root username:" "$root_user_name"
+    if [ -n "$root_user_pass" ]; then
+      if [ "${SHOW_PASSWORDS:-no}" = "yes" ]; then
+        __printf_space "40" "root password:" "$root_user_pass"
+      else
+        __printf_space "40" "root password:" "saved to ${ROOT_FILE_PREFIX}/${SERVICE_NAME}_pass"
+      fi
+    fi
     __banner ""
   fi
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __init_config_etc() {
   local copy="no"
-  local name="$(find "/etc/$SERVICE_NAME" -maxdepth 0 2>/dev/null | head -n1)"
+  local name="$SERVICE_NAME"
   local etc_dir="${ETC_DIR:-/etc/$name}"
   local conf_dir="${CONF_DIR:-/config/$name}"
   __is_dir_empty "$conf_dir" && copy=yes
@@ -590,7 +585,7 @@ __create_ssl_cert
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __run_once() {
-  if [ "$CONFIG_DIR_INITIALIZED" = "false" ] || [ "$DATA_DIR_INITIALIZED" = "false" ] || [ ! -f "/config/.docker_has_run" ]; then
+  if [ "$CONFIG_DIR_INITIALIZED" = "no" ] || [ "$DATA_DIR_INITIALIZED" = "no" ] || [ ! -f "/config/.docker_has_run" ]; then
     return 0
   else
     return 1
@@ -599,7 +594,7 @@ __run_once() {
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # run program ever n minutes
 __cron() {
-  trap 'retVal=$?;[ -f "/run/cron/$bin.run" ] && rm -Rf "/run/cron/$bin.run";[ -f "/run/cron/$bin.pid" ] && rm -Rf "/run/cron/$bin.pid";exit ${retVal:-0}' SIGINT ERR EXIT
+  local bin=""
   if [ "$1" = "--pid" ]; then
     pid="$2"
     shift 2
@@ -614,11 +609,13 @@ __cron() {
   fi
   [ $# -eq 0 ] && echo "Usage: cron [interval] [command]" && exit 1
   local command="$*"
-  local bin="$(basename "${CRON_NAME:-$1}")"
+  bin="${CRON_NAME:-$1}"; bin="${bin##*/}"
+  trap 'retVal=$?;[ -f "/run/cron/$bin.run" ] && rm -Rf "/run/cron/$bin.run";[ -f "/run/cron/$bin.pid" ] && rm -Rf "/run/cron/$bin.pid";exit ${retVal:-0}' SIGINT ERR EXIT
   [ -d "/run/cron" ] || mkdir -p "/run/cron"
   echo "$pid" >"/run/cron/$bin.pid"
   echo "$command" >"/run/cron/$bin.run"
   echo "Log is saved to /data/logs/cron.log"
+  # eval is intentional: $command is operator-controlled input from this container's init
   while :; do
     eval "$command"
     sleep $interval
@@ -635,15 +632,15 @@ __replace() {
 __find_replace() {
   local search="$1" replace="$2" file="${3:-$2}"
   [ -e "$file" ] || return 1
-  find "$file" -type f -not -path '.git*' -exec sed -i "s|$search|$replace|g" {} \; 2>/dev/null
+  find "$file" -type f -not -path '*/.git/*' -not -name '.git' -exec sed -i "s|$search|$replace|g" {} + 2>/dev/null
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # /config > /etc
 __copy_templates() {
-  local from="$1" to="$2"
-  is_link="$(ls -la "$dest" 2>/dev/null | awk '{print $NF}')"
+  local from="$1" to="$2" is_link=""
+  [ -L "$to" ] && is_link="$(readlink "$to")"
   [ "$from" != "$is_link" ] || return 0
-  if [ -e "$from" ] && __is_dir_empty "$to"; then
+  if [ -e "$from" ] && (! [ -d "$to" ] || __is_dir_empty "$to"); then
     __file_copy "$from" "$to"
   fi
 }
@@ -651,16 +648,18 @@ __copy_templates() {
 # /config/file > /etc/file
 __symlink() {
   local from="$1" to="$2"
-  if [ -e "$to" ]; then
-    [ -e "$from" ] && __rm "$from"
-    ln -sf "$to" "$from" && echo "Created symlink to $from > $to"
-  fi
+  [ -e "$to" ] || return 0
+  [ "$from" = "$to" ] && return 0
+  __rm "$from"
+  [ -d "${from%/*}" ] || mkdir -p "${from%/*}" 2>/dev/null
+  ln -sf "$to" "$from" && echo "Created symlink to $from > $to"
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __file_copy() {
   local from="$1"
   local dest="$2"
-  is_link="$(ls -la "$dest" 2>/dev/null | awk '{print $NF}')"
+  local is_link=""
+  [ -L "$dest" ] && is_link="$(readlink "$dest")"
   if [ "$from" != "$is_link" ]; then
     if [ -n "$from" ] && [ -e "$from" ] && [ -n "$dest" ]; then
       if [ -d "$from" ]; then
@@ -688,7 +687,7 @@ __file_copy() {
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __generate_random_uids() {
-  local set_random_uid="$(seq 100 999 | sort -R | head -n 1)"
+  local set_random_uid=$((100 + RANDOM % 900))
   while :; do
     if grep -shq "x:.*:$set_random_uid:" "/etc/group" && ! grep -shq "x:$set_random_uid:.*:" "/etc/passwd"; then
       set_random_uid=$((set_random_uid + 1))
@@ -757,20 +756,40 @@ __fix_permissions() {
   fi
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-__get_gid() { grep "^$1:" /etc/group 2>/dev/null | awk -F ':' '{print $3}' || return 1; }
-__get_uid() { grep "^$1:" /etc/passwd 2>/dev/null | awk -F ':' '{print $3}' || return 1; }
-__check_for_uid() { cat "/etc/passwd" 2>/dev/null | awk -F ':' '{print $3}' | sort -u | grep -q "^$1$" 2>/dev/null || return 1; }
-__check_for_guid() { cat "/etc/group" 2>/dev/null | awk -F ':' '{print $3}' | sort -u | grep -q "^$1$" 2>/dev/null || return 1; }
-__check_for_user() { cat "/etc/passwd" 2>/dev/null | awk -F ':' '{print $1}' | sort -u | grep -q "^$1$" 2>/dev/null || return 1; }
-__check_for_group() { cat "/etc/group" 2>/dev/null | awk -F ':' '{print $1}' | sort -u | grep -q "^$1$" 2>/dev/null || return 1; }
+__get_gid() { awk -F: -v n="$1" '$1==n {print $3; found=1; exit} END {exit !found}' /etc/group 2>/dev/null; }
+__get_uid() { awk -F: -v n="$1" '$1==n {print $3; found=1; exit} END {exit !found}' /etc/passwd 2>/dev/null; }
+__check_for_uid() { awk -F: -v n="$1" '$3==n {found=1; exit} END {exit !found}' /etc/passwd 2>/dev/null; }
+__check_for_guid() { awk -F: -v n="$1" '$3==n {found=1; exit} END {exit !found}' /etc/group 2>/dev/null; }
+__check_for_user() { awk -F: -v n="$1" '$1==n {found=1; exit} END {exit !found}' /etc/passwd 2>/dev/null; }
+__check_for_group() { awk -F: -v n="$1" '$1==n {found=1; exit} END {exit !found}' /etc/group 2>/dev/null; }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # check if process is already running
 __proc_check() {
-  cmd_bin="$(type -P "${1:-$EXEC_CMD_BIN}")"
-  cmd_name="$(basename "${cmd_bin:-$EXEC_CMD_NAME}")"
-  if __pgrep "$cmd_bin" || __pgrep "$cmd_name"; then
+  # Skip process check for one-shot/configuration services
+  if [ "$SERVICE_USES_PID" = "no" ]; then
+    return 1
+  fi
+  local cmd_bin cmd_name check_result
+  cmd_bin="$(type -P "${1:-$EXEC_CMD_BIN}" 2>/dev/null || echo "${1:-$EXEC_CMD_BIN}")"
+  cmd_name="${cmd_bin:-${1:-$EXEC_CMD_NAME}}"; cmd_name="${cmd_name##*/}"
+  if [ -z "$cmd_name" ] || [ "$cmd_name" = "." ]; then
+    return 1
+  fi
+  check_result=1
+  if [ -n "$cmd_bin" ] && __pgrep "$cmd_bin" 2>/dev/null; then
+    check_result=0
+  elif [ -n "$cmd_name" ] && __pgrep "$cmd_name" 2>/dev/null; then
+    check_result=0
+  elif [ -f "$SERVICE_PID_FILE" ]; then
+    local pid_from_file
+    pid_from_file=$(<"$SERVICE_PID_FILE") 2>/dev/null
+    if [ -n "$pid_from_file" ] && kill -0 "$pid_from_file" 2>/dev/null; then
+      check_result=0
+    fi
+  fi
+  if [ $check_result -eq 0 ]; then
     SERVICE_IS_RUNNING="yes"
-    touch "$SERVICE_PID_FILE"
+    pgrep -x -n "$cmd_name" >"$SERVICE_PID_FILE" 2>/dev/null || true
     return 0
   else
     return 1
@@ -824,11 +843,11 @@ __create_service_user() {
     return 0
   fi
   # Validate user/group name format (alphanumeric, underscore, hyphen; must start with letter or underscore)
-  if [ -n "$create_user" ] && ! echo "$create_user" | grep -qE '^[a-z_][a-z0-9_-]*$'; then
+  if [ -n "$create_user" ] && [[ ! "$create_user" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
     echo "Error: Invalid username format '$create_user' - must start with letter/underscore, contain only lowercase alphanumeric, underscore, or hyphen" >&2
     return 1
   fi
-  if [ -n "$create_group" ] && ! echo "$create_group" | grep -qE '^[a-z_][a-z0-9_-]*$'; then
+  if [ -n "$create_group" ] && [[ ! "$create_group" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
     echo "Error: Invalid group name format '$create_group' - must start with letter/underscore, contain only lowercase alphanumeric, underscore, or hyphen" >&2
     return 1
   fi
@@ -858,11 +877,11 @@ __create_service_user() {
     create_gid="$random_id"
   fi
   # Validate UID/GID are numeric and within valid range
-  if ! echo "$create_uid" | grep -qE '^[0-9]+$' || [ "$create_uid" -lt 1 ] || [ "$create_uid" -gt 65534 ]; then
+  if [[ ! "$create_uid" =~ ^[0-9]+$ ]] || [ "$create_uid" -lt 1 ] || [ "$create_uid" -gt 65534 ]; then
     echo "Error: Invalid UID '$create_uid' - must be a number between 1 and 65534" >&2
     return 1
   fi
-  if ! echo "$create_gid" | grep -qE '^[0-9]+$' || [ "$create_gid" -lt 1 ] || [ "$create_gid" -gt 65534 ]; then
+  if [[ ! "$create_gid" =~ ^[0-9]+$ ]] || [ "$create_gid" -lt 1 ] || [ "$create_gid" -gt 65534 ]; then
     echo "Error: Invalid GID '$create_gid' - must be a number between 1 and 65534" >&2
     return 1
   fi
@@ -947,28 +966,26 @@ __create_env_file() {
     dir="$(dirname "$create_env")"
     [ -d "$dir" ] || mkdir -p "$dir"
     if [ -n "$create_env" ] && [ ! -f "$create_env" ]; then
-      cat <<EOF | tee -p "$create_env" >/dev/null
-$(<"$sample_file")
-EOF
+      cp -f "$sample_file" "$create_env"
     fi
     [ -f "$create_env" ] || envStatus=$((1 + envStatus))
   done
-  rm -f "$sample_file"
+  [ "$envStatus" -eq 0 ] && rm -f "$sample_file"
   return $envStatus
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __exec_command() {
-  local bin=""
   local arg=("$@")
-  local exitCode="0"
+  local exitCode=0
   local cmdExec="${arg:-}"
   local pre_exec="--login -c"
-  local shell="$(type -P bash 2>/dev/null || type -P dash 2>/dev/null || type -P ash 2>/dev/null || type -P sh 2>/dev/null)"
-  bin="$(echo "${arg[*]}" | tr ' ' '\n' | grep -v '^$' | head -n1 | sed 's| ||g' || echo 'bash')"
+  local shell bin prog
+  shell=$(type -P bash || type -P dash || type -P ash || type -P sh) 2>/dev/null
+  bin="${arg[0]:-bash}"
   prog="$(type -P "$bin" 2>/dev/null || echo "$bin")"
-  if type -t $bin >/dev/null 2>&1; then
+  if type -t "$bin" &>/dev/null; then
     echo "${exec_message:-Executing command: $cmdExec}"
-    eval $shell $pre_exec "$cmdExec" || exitCode=1
+    "$shell" $pre_exec "$cmdExec"
     exitCode=$?
   elif [ -f "$prog" ]; then
     echo "$prog is not executable"
@@ -985,7 +1002,8 @@ __start_init_scripts() {
   [ "$1" = " " ] && shift 1
   if [ "$DEBUGGER" = "on" ]; then
     echo "Enabling debugging"
-    set -o pipefail -x$DEBUGGER_OPTIONS
+    set -o pipefail
+    [ -n "$DEBUGGER_OPTIONS" ] && set -"$DEBUGGER_OPTIONS"
   else
     set -o pipefail
   fi
@@ -997,7 +1015,9 @@ __start_init_scripts() {
   local critical_failures="0"
   local pidFile="/run/.start_init_scripts.pid"
   local init_dir="${1:-/usr/local/etc/docker/init.d}"
-  local init_count="$(ls -A "$init_dir"/* 2>/dev/null | grep -v '\.sample' | wc -l)"
+  local init_files=("$init_dir"/*.sh)
+  local init_count=0
+  [ -e "${init_files[0]}" ] && init_count=${#init_files[@]}
   local exit_on_failure="${EXIT_ON_SERVICE_FAILURE:-true}"
 
   # Clean stale PID files from previous runs
@@ -1013,8 +1033,11 @@ __start_init_scripts() {
     while :; do echo "Running: $(date)" >"/data/logs/init/keep_alive" && sleep 3600; done &
   else
     if [ -d "$init_dir" ]; then
-      [ -f "$init_dir/service.sample" ] && __rm "$init_dir"/*.sample
-      chmod -Rf 755 "$init_dir"/*.sh
+      local sample
+      for sample in "$init_dir"/*.sample; do
+        [ -e "$sample" ] && __rm "$sample"
+      done
+      (shopt -s nullglob; chmod -Rf 755 "$init_dir"/*.sh 2>/dev/null || true)
 
       echo "🚀 Starting container services initialization"
       echo "📂 Init directory: $init_dir"
@@ -1025,11 +1048,11 @@ __start_init_scripts() {
       for init in "$init_dir"/*.sh; do
         if [ -x "$init" ]; then
           touch "$pidFile"
-          name="$(basename "$init")"
-          service="$(printf '%s' "$name" | sed 's/^[^-]*-//;s|.sh$||g')"
-          __service_banner "🔧" "Executing service script:" "$(basename "$init")"
-          # Execute the init script and capture the exit code
-          if source "$init"; then
+          name="${init##*/}"
+          service="${name#*-}"; service="${service%.sh}"
+          __service_banner "🔧" "Executing service script:" "${init##*/}"
+          # Execute the init script and capture the exit code (subshell isolates exit calls)
+          if ( source "$init" ); then
             # Check if service was disabled first
             if [ -n "$SERVICE_DISABLED" ]; then
               initStatus="0"
@@ -1044,52 +1067,48 @@ __start_init_scripts() {
               sleep 1
               # Check for service success indicators
               local expected_pid_file="/run/init.d/$service.pid"
+              set +e
+              # Check if this is a configuration service (no daemon process expected)
               if [ "$SERVICE_USES_PID" = "no" ]; then
-                # Service doesn't use PID files - check if expected PID file exists or assume success
-                if [ -f "$expected_pid_file" ]; then
-                  retPID="$(cat "$expected_pid_file" 2>/dev/null || echo "0")"
-                  initStatus="0"
-                  __service_banner "✅" "Service $service started successfully -" "PID file"
-                else
-                  initStatus="0"
-                  __service_banner "✅" "Service $service started successfully -" "no PID tracking"
-                fi
+                # Configuration service - no daemon process expected
+                initStatus="0"
+                __service_banner "✅" "Service $service completed successfully -" "configuration service"
               else
                 # Service uses PID tracking - verify actual running processes
-                set +e # Temporarily disable exit on error
                 retPID=""
-                # First, try to find actual running process with various name patterns
-                for name_variant in "$service" "${service}84" "${service}d" "$(echo "$service" | sed 's/-//g')" "$(echo "$service" | tr -d '-')"; do
+                local found_process=""
+                # Try multiple name variants to find the process
+                for name_variant in "$service" "${service}d" "${service//-/}"; do
                   if [ -z "$retPID" ]; then
                     retPID=$(__get_pid "$name_variant" 2>/dev/null || echo "")
-                    [ -n "$retPID" ] && found_process="$name_variant" && break
+                    if [ -n "$retPID" ] && [ "$retPID" != "0" ]; then
+                      found_process="$name_variant"
+                      break
+                    fi
                   fi
                 done
-                set -e # Re-enable exit on error
                 if [ -n "$retPID" ] && [ "$retPID" != "0" ]; then
                   # Found actual running process
                   initStatus="0"
                   __service_banner "✅" "Service $service started successfully -" "PID: ${retPID} ($found_process)"
                 elif [ -f "$expected_pid_file" ]; then
                   # No running process but PID file exists - verify PID is valid
-                  file_pid="$(cat "$expected_pid_file" 2>/dev/null || echo "")"
+                  file_pid=$(<"$expected_pid_file") 2>/dev/null
                   if [ -n "$file_pid" ] && kill -0 "$file_pid" 2>/dev/null; then
                     initStatus="0"
                     __service_banner "✅" "Service $service started successfully -" "PID: $file_pid (from file)"
-                  elif [ -n "$file_pid" ]; then
-                    initStatus="1"
-                    critical_failures=$((critical_failures + 1))
-                    __service_banner "⚠️" "Service $service has stale PID file -" "process $file_pid not running"
                   else
+                    # PID file exists but process isn't running - treat as warning, not failure
                     initStatus="0"
-                    __service_banner "✅" "Service $service completed initialization -" "no process tracking"
+                    __service_banner "⚠️" "Service $service may not be running -" "no process found (non-critical)"
                   fi
                 else
-                  # No process and no PID file - this is likely a configuration-only service
+                  # No process and no PID file - likely a configuration-only service
                   initStatus="0"
                   __service_banner "✅" "Service $service completed successfully -" "configuration service"
                 fi
               fi
+              set -e
             fi
           else
             initStatus="1"
@@ -1102,15 +1121,19 @@ __start_init_scripts() {
       done
 
       # Summary
+      echo ""
       if [ $critical_failures -gt 0 ]; then
-        echo "⚠️ Warning: $critical_failures service(s) failed to start"
-        if [ "$exit_on_failure" = "true" ] && [ $critical_failures -ge 1 ]; then
-          echo "❌ Exiting due to critical service failures"
+        echo "⚠️ Warning: $critical_failures critical service(s) reported failures"
+        if [ "$exit_on_failure" = "true" ] && [ $critical_failures -ge 2 ]; then
+          echo "❌ Exiting due to multiple critical service failures (threshold: 2)"
           return 1
+        else
+          echo "ℹ️ Continuing with $critical_failures failure(s) - container may still be functional"
         fi
       else
-        echo "✅ All services started successfully"
+        echo "✅ All service initializations completed successfully"
       fi
+      echo ""
     fi
   fi
 
@@ -1129,14 +1152,14 @@ __setup_mta() {
   local local_hostname="${FULL_DOMAIN_NAME:-}"
   local account_user="${SERVER_ADMIN//@*/}"
   local account_domain="${EMAIL_DOMAIN//*@/}"
-  echo "$EMAIL_RELAY" | grep '[0-9][0-9]' || relay_port="465"
+  [[ $EMAIL_RELAY == *[0-9][0-9]* ]] || relay_port="465"
   ################# sSMTP relay setup
-  if [ -n "$(type -P 'ssmtp')" ]; then
+  if command -v ssmtp &>/dev/null; then
     [ -d "/config/ssmtp" ] || mkdir -p "/config/ssmtp"
     [ -f "/etc/ssmtp/ssmtp.conf" ] && __rm "/etc/ssmtp/ssmtp.conf"
     symlink_files="$(__find_file_relative "/config/ssmtp")"
     if [ ! -f "/config/ssmtp/ssmtp.conf" ]; then
-      cat <<EOF | tee -p "/config/ssmtp/ssmtp.conf" >/dev/null
+      cat >"/config/ssmtp/ssmtp.conf" <<EOF
 # ssmtp configuration.
 root=${account_user:-root}@${account_domain:-$HOSTNAME}
 mailhub=${relay_server:-172.17.0.1}:$relay_port
@@ -1170,13 +1193,13 @@ EOF
     fi
 
     ################# postfix relay setup
-  elif [ -n "$(type -P 'postfix')" ]; then
+  elif command -v postfix &>/dev/null; then
     [ -d "/etc/postfix" ] || mkdir -p "/etc/postfix"
     [ -d "/config/postfix" ] || mkdir -p "/config/postfix"
     [ -f "/etc/postfix/main.cf" ] && __rm "/etc/postfix/main.cf"
     symlink_files="$(__find_file_relative "/config/postfix")"
     if [ ! -f "/config/postfix/main.cf" ]; then
-      cat <<EOF | tee -p "/config/postfix/main.cf" >/dev/null
+      cat >"/config/postfix/main.cf" <<EOF
 # postfix configuration.
 smtpd_banner = \$myhostname ESMTP email server
 compatibility_level = 2
@@ -1210,8 +1233,8 @@ EOF
       __initialize_replace_variables "/etc/postfix"
       touch "/config/postfix/aliases" "/config/postfix/mynetworks" "/config/postfix/transport"
       touch "/config/postfix/mydomains.pcre" "/config/postfix/mydomains" "/config/postfix/virtual"
-      postmap "/config/aliases" "/config/mynetworks" "/config/transport" &>/dev/null
-      postmap "/config/mydomains.pcre" "/config/mydomains" "/config/virtual" &>/dev/null
+      postmap "/config/postfix/aliases" "/config/postfix/mynetworks" "/config/postfix/transport" &>/dev/null
+      postmap "/config/postfix/mydomains.pcre" "/config/postfix/mydomains" "/config/postfix/virtual" &>/dev/null
     fi
     if [ -f "/etc/postfix/main.cf" ] && [ ! -f "/run/init.d/postfix.pid" ]; then
       SERVICES_LIST+="postfix "
@@ -1294,7 +1317,7 @@ __initialize_database() {
   __find_replace "REPLACE_DATABASE_ROOT_PASS" "$db_admin_pass" "$dir"
   __find_replace "REPLACE_DATABASE_NAME" "$DATABASE_NAME" "$dir"
   __find_replace "REPLACE_DATABASE_DIR" "$DATABASE_DIR" "$dir"
-  if echo "$dir" | grep -q '^/etc'; then
+  if [[ "$dir" == "/etc"* ]]; then
     __find_replace "REPLACE_USER_NAME" "$db_normal_user" "/etc"
     __find_replace "REPLACE_USER_PASS" "$db_normal_pass" "/etc"
     __find_replace "REPLACE_DATABASE_USER" "$db_normal_user" "/etc"
@@ -1324,11 +1347,11 @@ __initialize_db_users() {
 __initialize_system_etc() {
   local conf_dir="$1"
   local dir=""
-  local file=()
+  local files=""
   local directories=""
   if [ -n "$conf_dir" ] && [ -e "$conf_dir" ]; then
-    files="$(find "$conf_dir"/* -not -path '*/env/*' -type f 2>/dev/null | sed 's|'/config/'||g' | sort -u | grep -v '^$' | grep '.' || false)"
-    directories="$(find "$conf_dir"/* -not -path '*/env/*' -type d 2>/dev/null | sed 's|'/config/'||g' | sort -u | grep -v '^$' | grep '.' || false)"
+    files=$(find "$conf_dir"/* -not -path '*/env/*' -type f 2>/dev/null | sort -u | sed 's|/config/||')
+    directories=$(find "$conf_dir"/* -not -path '*/env/*' -type d 2>/dev/null | sort -u | sed 's|/config/||')
     echo "Copying config files to system: $conf_dir > /etc/${conf_dir//\/config\//}"
     if [ -n "$directories" ]; then
       for d in $directories; do
@@ -1356,7 +1379,7 @@ __initialize_custom_bin_dir() {
     echo "Setting up bin $SET_USR_BIN > $LOCAL_BIN_DIR"
     for create_bin_template in $SET_USR_BIN; do
       if [ -n "$create_bin_template" ]; then
-        create_bin_name="$(basename "$create_bin_template")"
+        create_bin_name="${create_bin_template##*/}"
         if [ -e "$create_bin_template" ]; then
           ln -sf "$create_bin_template" "$LOCAL_BIN_DIR/$create_bin_name"
         fi
@@ -1367,51 +1390,86 @@ __initialize_custom_bin_dir() {
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __initialize_default_templates() {
+  local errors=0
   if [ -n "$DEFAULT_TEMPLATE_DIR" ]; then
-    if [ "$CONFIG_DIR_INITIALIZED" = "false" ] && [ -d "/config" ]; then
-      echo "Copying default config files $DEFAULT_TEMPLATE_DIR > /config"
+    if [ "$CONFIG_DIR_INITIALIZED" = "no" ] && [ -d "/config" ]; then
+      __log_info "Copying default config files $DEFAULT_TEMPLATE_DIR > /config"
+      if [ ! -d "$DEFAULT_TEMPLATE_DIR" ]; then
+        __log_warn "Template directory not found: $DEFAULT_TEMPLATE_DIR"
+        return 0
+      fi
       for create_config_template in "$DEFAULT_TEMPLATE_DIR"/*; do
-        if [ -n "$create_config_template" ]; then
-          create_template_name="$(basename "$create_config_template")"
+        if [ -e "$create_config_template" ]; then
+          create_template_name="${create_config_template##*/}"
           if [ -d "$create_config_template" ]; then
-            mkdir -p "/config/$create_template_name/"
-            __is_dir_empty "/config/$create_template_name" && cp -Rf "$create_config_template/." "/config/$create_template_name/" 2>/dev/null
-          elif [ -e "$create_config_template" ]; then
-            [ -e "/config/$create_template_name" ] || cp -Rf "$create_config_template" "/config/$create_template_name" 2>/dev/null
+            mkdir -p "/config/$create_template_name/" || errors=$((errors + 1))
+            if __is_dir_empty "/config/$create_template_name"; then
+              if ! cp -Rf "$create_config_template/." "/config/$create_template_name/" 2>/dev/null; then
+                __log_warn "Failed to copy template directory: $create_template_name"
+                errors=$((errors + 1))
+              fi
+            fi
+          elif [ -f "$create_config_template" ]; then
+            if [ ! -e "/config/$create_template_name" ]; then
+              if ! cp -Rf "$create_config_template" "/config/$create_template_name" 2>/dev/null; then
+                __log_warn "Failed to copy template file: $create_template_name"
+                errors=$((errors + 1))
+              fi
+            fi
           fi
         fi
       done
       unset create_config_template create_template_name
+      __log_debug "Template initialization completed with $errors errors"
     fi
   fi
+  return 0
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __initialize_config_dir() {
+  local errors=0
   if [ -n "$DEFAULT_CONF_DIR" ]; then
-    if [ "$CONFIG_DIR_INITIALIZED" = "false" ] && [ -d "/config" ]; then
-      echo "Copying custom config files: $DEFAULT_CONF_DIR > /config"
+    if [ "$CONFIG_DIR_INITIALIZED" = "no" ] && [ -d "/config" ]; then
+      __log_info "Copying custom config files: $DEFAULT_CONF_DIR > /config"
+      if [ ! -d "$DEFAULT_CONF_DIR" ]; then
+        __log_warn "Config directory not found: $DEFAULT_CONF_DIR"
+        return 0
+      fi
       for create_config_template in "$DEFAULT_CONF_DIR"/*; do
-        create_config_name="$(basename "$create_config_template")"
-        if [ -n "$create_config_template" ]; then
+        if [ -e "$create_config_template" ]; then
+          create_config_name="${create_config_template##*/}"
           if [ -d "$create_config_template" ]; then
-            mkdir -p "/config/$create_config_name"
-            __is_dir_empty "/config/$create_config_name" && cp -Rf "$create_config_template/." "/config/$create_config_name/" 2>/dev/null
-          elif [ -e "$create_config_template" ]; then
-            [ -e "/config/$create_config_name" ] || cp -Rf "$create_config_template" "/config/$create_config_name" 2>/dev/null
+            mkdir -p "/config/$create_config_name" || errors=$((errors + 1))
+            if __is_dir_empty "/config/$create_config_name"; then
+              if ! cp -Rf "$create_config_template/." "/config/$create_config_name/" 2>/dev/null; then
+                __log_warn "Failed to copy config directory: $create_config_name"
+                errors=$((errors + 1))
+              fi
+            fi
+          elif [ -f "$create_config_template" ]; then
+            if [ ! -e "/config/$create_config_name" ]; then
+              if ! cp -Rf "$create_config_template" "/config/$create_config_name" 2>/dev/null; then
+                __log_warn "Failed to copy config file: $create_config_name"
+                errors=$((errors + 1))
+              fi
+            fi
           fi
         fi
       done
       unset create_config_template create_config_name
+      __log_debug "Config initialization completed with $errors errors"
     fi
   fi
+  return 0
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 __initialize_data_dir() {
+  [ "$DATA_DIR_INITIALIZED" = "no" ] || return 0
   if [ -d "/data" ]; then
-    if [ "$DATA_DIR_INITIALIZED" = "false" ] && [ -n "$DEFAULT_DATA_DIR" ]; then
-      echo "Copying data files $DEFAULT_DATA_DIR > /data"
+    if [ -n "$DEFAULT_DATA_DIR" ]; then
+      __log_info "Copying data files $DEFAULT_DATA_DIR > /data"
       for create_data_template in "$DEFAULT_DATA_DIR"/*; do
-        create_data_name="$(basename "$create_data_template")"
+        create_data_name="${create_data_template##*/}"
         if [ -n "$create_data_template" ]; then
           if [ -d "$create_data_template" ]; then
             mkdir -p "/data/$create_data_name"
@@ -1421,7 +1479,7 @@ __initialize_data_dir() {
           fi
         fi
       done
-      unset create_template
+      unset create_data_template
     fi
   fi
 }
@@ -1447,17 +1505,17 @@ __is_htdocs_mounted() {
   WWW_ROOT_DIR="${WWW_ROOT_DIR:-/data/htdocs}"
   [ -n "$ENV_WWW_ROOT_DIR" ] && WWW_ROOT_DIR="$ENV_WWW_ROOT_DIR"
   if [ -n "$IMPORT_FROM_GIT" ]; then
-    if ! echo "$IMPORT_FROM_GIT" | grep -qE 'https://|http://|git://|ssh://'; then
+    if [[ ! "$IMPORT_FROM_GIT" =~ (https://|http://|git://|ssh://) ]]; then
       unset IMPORT_FROM_GIT
     fi
   fi
-  if [ -n "$IMPORT_FROM_GIT" ] && [ "$(command -v "git" 2>/dev/null)" ]; then
+  if [ -n "$IMPORT_FROM_GIT" ] && command -v git &>/dev/null; then
     if __is_dir_empty "$WWW_ROOT_DIR"; then
       echo "Importing project from $IMPORT_FROM_GIT to $WWW_ROOT_DIR"
       git clone -q "$IMPORT_FROM_GIT" "$WWW_ROOT_DIR"
     elif [ -d "$WWW_ROOT_DIR" ]; then
       echo "Updating the project in $WWW_ROOT_DIR"
-      git -C pull -q "$WWW_ROOT_DIR"
+      git -C "$WWW_ROOT_DIR" pull -q
     fi
   elif [ -d "/app" ]; then
     WWW_ROOT_DIR="/app"
@@ -1507,7 +1565,7 @@ __start_php_dev_server() {
       find "/usr/local/share/httpd" -type f -not -path '.git*' -iname '*.php' -exec sed -i 's|[<].*SERVER_ADDR.*[>]|'${CONTAINER_IP4_ADDRESS:-127.0.0.1}'|g' {} \; 2>/dev/null
       php -S 0.0.0.0:$PHP_DEV_SERVER_PORT -t "/usr/local/share/httpd"
     fi
-    if ! echo "$1" | grep -q "^/usr/local/share/httpd"; then
+    if [[ "$1" != "/usr/local/share/httpd"* ]]; then
       find "$1" -type f -not -path '.git*' -iname '*.php' -exec sed -i 's|[<].*SERVER_ADDR.*[>]|'${CONTAINER_IP4_ADDRESS:-127.0.0.1}'|g' {} \; 2>/dev/null
       php -S 0.0.0.0:$PHP_DEV_SERVER_PORT -t "$1"
     fi
@@ -1528,16 +1586,16 @@ __switch_to_user() {
   if [ "$switch_user" = "root" ]; then
     su_exec=""
     su_cmd() { eval "$@" || return 1; }
-  elif [ "$(builtin type -P gosu)" ]; then
+  elif command -v gosu &>/dev/null; then
     su_exec="gosu $switch_user"
     su_cmd() { $su_exec "$@" || return 1; }
-  elif [ "$(builtin type -P runuser)" ]; then
+  elif command -v runuser &>/dev/null; then
     su_exec="runuser -u $switch_user"
     su_cmd() { $su_exec "$@" || return 1; }
-  elif [ "$(builtin type -P sudo)" ]; then
+  elif command -v sudo &>/dev/null; then
     su_exec="sudo -u $switch_user"
     su_cmd() { $su_exec "$@" || return 1; }
-  elif [ "$(builtin type -P su)" ]; then
+  elif command -v su &>/dev/null; then
     su_exec="su -s /bin/sh - $switch_user"
     su_cmd() { $su_exec -c "$@" || return 1; }
   else
@@ -1583,8 +1641,13 @@ __backup() {
   [ -z "$dirs" ] && echo "BACKUP_DIR is unset" >&2 && return 1
   [ -f "$pidFile" ] && echo "A backup job is already running" >&2 && return 1
   echo "$$" >"$pidFile"
+  trap "rm -f '$pidFile'" EXIT INT TERM
   echo "Starting backup in $(date)" >>"$logDir/$CONTAINER_NAME"
-  tar --exclude $backup_exclude cfvz "$backup_dir/$backup_name" $dirs 2>/dev/stderr >>"$logDir/$CONTAINER_NAME" || exitCodeP=1
+  local tar_excludes=()
+  for excl in $backup_exclude; do
+    tar_excludes+=("--exclude=$excl")
+  done
+  tar "${tar_excludes[@]}" -cfvz "$backup_dir/$backup_name" $dirs 2>/dev/stderr >>"$logDir/$CONTAINER_NAME" || exitCodeP=1
   if [ $exitCodeP -eq 0 ]; then
     echo "Backup has completed and saved to: $backup_dir/$backup_name"
     printf '%s\n\n' "Backup has completed on $(date)" >>"$logDir/$CONTAINER_NAME"
@@ -1595,7 +1658,7 @@ __backup() {
     exitStatus=1
   fi
   [ -f "$pidFile" ] && __rm "$pidFile"
-  [ -n "$maxDays" ] && find "$BACKUP_DIR"* -mtime +$maxDays -exec rm -Rf {} \; >/dev/null 2>&1
+  [ -n "$maxDays" ] && find "$BACKUP_DIR" -mtime +"$maxDays" -exec rm -Rf {} \; >/dev/null 2>&1
   if [ -n "$cronTime" ]; then
     runTime=$((cronTime * 3600))
   else
@@ -1609,8 +1672,8 @@ export INIT_DATE="${INIT_DATE:-$(date)}"
 export START_SERVICES="${START_SERVICES:-yes}"
 export ENTRYPOINT_MESSAGE="${ENTRYPOINT_MESSAGE:-yes}"
 export ENTRYPOINT_FIRST_RUN="${ENTRYPOINT_FIRST_RUN:-yes}"
-export DATA_DIR_INITIALIZED="${DATA_DIR_INITIALIZED:-false}"
-export CONFIG_DIR_INITIALIZED="${CONFIG_DIR_INITIALIZED:-false}"
+export DATA_DIR_INITIALIZED="${DATA_DIR_INITIALIZED:-no}"
+export CONFIG_DIR_INITIALIZED="${CONFIG_DIR_INITIALIZED:-no}"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # System
 export LANG="${LANG:-C.UTF-8}"
@@ -1620,7 +1683,7 @@ export HOSTNAME="${FULL_DOMAIN_NAME:-${SERVER_HOSTNAME:-$HOSTNAME}}"
 # - - - - - - - - - - - - - - - - - - - - - - - - -
 # Default directories
 export SSL_DIR="${SSL_DIR:-/config/ssl}"
-export SSL_CA="${SSL_CERT:-/config/ssl/ca.crt}"
+export SSL_CA="${SSL_CA:-/config/ssl/ca.crt}"
 export SSL_KEY="${SSL_KEY:-/config/ssl/localhost.pem}"
 export SSL_CERT="${SSL_CERT:-/config/ssl/localhost.crt}"
 export LOCAL_BIN_DIR="${LOCAL_BIN_DIR:-/usr/local/bin}"
@@ -1657,23 +1720,23 @@ export ENTRYPOINT_CONFIG_INIT_FILE="${ENTRYPOINT_CONFIG_INIT_FILE:-/config/.dock
 # is already Initialized
 if [ -z "$DATA_DIR_INITIALIZED" ]; then
   if [ -f "$ENTRYPOINT_DATA_INIT_FILE" ]; then
-    DATA_DIR_INITIALIZED="true"
+    DATA_DIR_INITIALIZED="yes"
   else
-    DATA_DIR_INITIALIZED="false"
+    DATA_DIR_INITIALIZED="no"
   fi
 fi
 if [ -z "$CONFIG_DIR_INITIALIZED" ]; then
   if [ -f "$ENTRYPOINT_CONFIG_INIT_FILE" ]; then
-    CONFIG_DIR_INITIALIZED="true"
+    CONFIG_DIR_INITIALIZED="yes"
   else
-    CONFIG_DIR_INITIALIZED="false"
+    CONFIG_DIR_INITIALIZED="no"
   fi
 fi
 if [ -z "$ENTRYPOINT_FIRST_RUN" ]; then
   if [ -f "$ENTRYPOINT_PID_FILE" ] || [ -f "$ENTRYPOINT_INIT_FILE" ]; then
     ENTRYPOINT_FIRST_RUN="no"
   else
-    ENTRYPOINT_FIRST_RUN="true"
+    ENTRYPOINT_FIRST_RUN="yes"
   fi
 fi
 export ENTRYPOINT_DATA_INIT_FILE DATA_DIR_INITIALIZED ENTRYPOINT_CONFIG_INIT_FILE CONFIG_DIR_INITIALIZED

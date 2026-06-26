@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 # - - - - - - - - - - - - - - - - - - - - - - - - -
-##@Version           :  202606041210-git
+##@Version           :  202606261500-git
 # @@Author           :  Jason Hempstead
 # @@Contact          :  jason@casjaysdev.pro
 # @@License          :  WTFPL
@@ -370,7 +370,7 @@ if [ "$ENTRYPOINT_FIRST_RUN" != "no" ]; then
   # - - - - - - - - - - - - - - - - - - - - - - - - -
   # import hosts file into container
   if [ -f "/usr/local/etc/hosts" ] && [ "$UPDATE_FILE_HOSTS" = "yes" ]; then
-    grep -vF "$HOSTNAME" "/usr/local/etc/hosts" 2>/dev/null >>"/etc/hosts" 2>/dev/null || true
+    grep -vF "$HOSTNAME" "/usr/local/etc/hosts" 2>/dev/null >>"/etc/hosts" || true
   fi
   # - - - - - - - - - - - - - - - - - - - - - - - - -
   # import resolv.conf file into container

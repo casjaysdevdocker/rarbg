@@ -349,26 +349,8 @@ __run_secure_function() {
   fi
 }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# simple cd function
-__cd() { mkdir -p "$1" && builtin cd "$1" || exit 1; }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# process check functions
-__pcheck() { [ -n "$(type -P pgrep 2>/dev/null)" ] && pgrep -x "$1" &>/dev/null && return 0 || return 10; }
-__pgrep() { __pcheck "${1:-$EXEC_CMD_BIN}" || __ps aux 2>/dev/null | grep -Fw " ${1:-$EXEC_CMD_BIN}" | grep -qv ' grep' | grep '^' && return 0 || return 10; }
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# check if process is already running
-__proc_check() {
-  cmd_bin="$(type -P "${1:-$EXEC_CMD_BIN}")"
-  local _b="${cmd_bin:-$EXEC_CMD_NAME}"; cmd_name="${_b##*/}"
-  if __pgrep "$cmd_bin" || __pgrep "$cmd_name"; then
-    SERVICE_IS_RUNNING="true"
-    touch "$SERVICE_PID_FILE"
-    echo "$cmd_name is already running"
-    return 0
-  else
-    return 1
-  fi
-}
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Allow ENV_ variable - Import env file
 [ -f "/config/env/${SERVICE_NAME:-$SCRIPT_NAME}.sh" ] && . "/config/env/${SERVICE_NAME:-$SCRIPT_NAME}.sh"
